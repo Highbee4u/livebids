@@ -1,0 +1,892 @@
+openapi: 3.0.3
+info:
+  title: LiveBids API
+  description: High-concurrency live video auction marketplace API platform built on Laravel 13 with double-entry ledger settlement, welfare-verification identity checks, and real-time WebSockets bidding.
+  version: 1.0.0
+servers:
+  - url: http://localhost:8000/api/v1
+    description: Local Development Server
+  - url: https://api.livebids.ng/api/v1
+    description: Production API Server
+
+paths:
+  /auth/otp/request:
+    post:
+      summary: Request phone OTP
+      description: Rate-limited to 5 requests per hour. Dispatches 6-digit SMS OTP via welfare-notifications.
+      tags: [Authentication]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [phone]
+              properties:
+                phone:
+                  type: string
+                  example: "+2348012345678"
+                purpose:
+                  type: string
+                  enum: [login, withdrawal_confirmation, admin_sensitive_action]
+                  default: login
+      responses:
+        200:
+          description: OTP dispatched successfully
+        429:
+          description: Rate limited
+
+  /auth/otp/verify:
+    post:
+      summary: Verify phone OTP
+      description: Verifies 6-digit code, provisions double-entry ledger wallet, binds device, and issues Sanctum token.
+      tags: [Authentication]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [phone, code]
+              properties:
+                phone:
+                  type: string
+                  example: "+2348012345678"
+                code:
+                  type: string
+                  example: "123456"
+                device_id:
+                  type: string
+                  example: "uuid-device-987"
+                platform:
+                  type: string
+                  enum: [android, ios, web]
+                fcm_token:
+                  type: string
+      responses:
+        200:
+          description: Authenticated successfully
+
+  /auth/logout:
+    post:
+      summary: Revoke current session token
+      security:
+        - BearerAuth: []
+      tags: [Authentication]
+      responses:
+        200:
+          description: Token revoked
+
+  /me:
+    get:
+      summary: Authenticated user profile and verification status
+      security:
+        - BearerAuth: []
+      tags: [User Profile]
+      responses:
+        200:
+          description: User profile payload
+    patch:
+      summary: Update profile name and FCM push notification token
+      security:
+        - BearerAuth: []
+      tags: [User Profile]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                fcm_token:
+                  type: string
+      responses:
+        200:
+          description: Updated profile
+
+  /kyc/submit:
+    post:
+      summary: Submit National Identification Number (NIN)
+      description: Validates NIN via welfare-verification package. Persists decoded base64 photo to private storage and assigns seller role.
+      security:
+        - BearerAuth: []
+      tags: [Identity & KYC]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [nin]
+              properties:
+                nin:
+                  type: string
+                  minLength: 11
+                  maxLength: 11
+                  example: "12345678901"
+      responses:
+        200:
+          description: KYC verified successfully
+        409:
+          description: Duplicate NIN detected
+
+  /kyc/status:
+    get:
+      summary: Check identity verification status
+      security:
+        - BearerAuth: []
+      tags: [Identity & KYC]
+      responses:
+        200:
+          description: Status of KYC submission
+
+  /feed/upcoming:
+    get:
+      summary: Upcoming scheduled auctions swipe feed
+      tags: [Discovery]
+      parameters:
+        - name: category_id
+          in: query
+          schema:
+            type: integer
+      responses:
+        200:
+          description: Paginated list of upcoming auctions
+
+  /feed/live:
+    get:
+      summary: Live Now active stream carousel
+      tags: [Discovery]
+      responses:
+        200:
+          description: List of auctions currently broadcasting live
+
+  /categories:
+    get:
+      summary: List all active auction categories
+      tags: [Discovery]
+      responses:
+        200:
+          description: Array of categories
+
+  /auctions:
+    post:
+      summary: Create new auction listing
+      security:
+        - BearerAuth: []
+      tags: [Auctions]
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [title, pickup_area, starting_bid, scheduled_start_at]
+              properties:
+                title:
+                  type: string
+                description:
+                  type: string
+                category_id:
+                  type: integer
+                condition:
+                  type: string
+                  enum: [brand_new, like_new, gently_used, for_parts]
+                starting_bid:
+                  type: integer
+                  description: Amount in kobo
+                  example: 100000
+                reserve_price:
+                  type: integer
+                  description: Confidential minimum price in kobo (masked from buyers)
+                pickup_area:
+                  type: string
+                  example: "Ikeja, Lagos"
+                scheduled_start_at:
+                  type: string
+                  format: date-time
+                live_duration_seconds:
+                  type: integer
+                  default: 180
+      responses:
+        201:
+          description: Auction created
+
+  /auctions/{id}:
+    get:
+      summary: Auction details
+      description: Returns auction details. Reserve price is strictly redacted unless viewed by seller.
+      tags: [Auctions]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        200:
+          description: Auction payload
+
+  /auctions/{id}/live/start:
+    post:
+      summary: Seller begins live stream session
+      security:
+        - BearerAuth: []
+      tags: [Live Streaming]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        200:
+          description: LiveKit publisher token and room connection details
+
+  /auctions/{id}/live/join:
+    post:
+      summary: Buyer joins live stream room
+      security:
+        - BearerAuth: []
+      tags: [Live Streaming]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        200:
+          description: LiveKit subscriber token
+
+  /auctions/{id}/bids:
+    post:
+      summary: Place a bid with atomic Redis mutex locking
+      security:
+        - BearerAuth: []
+      tags: [Bidding Engine]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [amount]
+              properties:
+                amount:
+                  type: integer
+                  description: Bid amount in kobo
+                  example: 150000
+      responses:
+        201:
+          description: Bid placed and broadcast via Reverb
+
+  /auctions/{id}/select-winner:
+    post:
+      summary: Seller selects winning bid
+      description: Closes auction instantly, moves winner funds to escrow, and unlocks losing bidders.
+      security:
+        - BearerAuth: []
+      tags: [Auctions]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [bid_id]
+              properties:
+                bid_id:
+                  type: integer
+      responses:
+        200:
+          description: Order created in escrow
+
+  /auctions/{id}/end-unsold:
+    post:
+      summary: Seller ends auction without sale
+      security:
+        - BearerAuth: []
+      tags: [Auctions]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        200:
+          description: Auction closed and funds unlocked
+
+  /auctions/{id}/remind:
+    post:
+      summary: Toggle upcoming auction reminder
+      security:
+        - BearerAuth: []
+      tags: [Discovery]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        200:
+          description: Reminder toggled
+
+  /orders:
+    get:
+      summary: List authenticated user orders
+      security:
+        - BearerAuth: []
+      tags: [Orders & Escrow]
+      responses:
+        200:
+          description: Orders list
+
+  /orders/{id}:
+    get:
+      summary: Order details
+      description: Exposes 6-digit handover code only when requested by buyer. Code is masked for seller.
+      security:
+        - BearerAuth: []
+      tags: [Orders & Escrow]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        200:
+          description: Order details
+
+  /orders/{id}/confirm-handover:
+    post:
+      summary: Seller submits 6-digit buyer handover code
+      description: Verifies code hash with attempt limits and 30-min cooldown. Releases escrow to seller minus commission.
+      security:
+        - BearerAuth: []
+      tags: [Orders & Escrow]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [code]
+              properties:
+                code:
+                  type: string
+                  example: "123456"
+      responses:
+        200:
+          description: Escrow released and order completed
+
+  /orders/{id}/mark-received:
+    post:
+      summary: Buyer marks item as received
+      security:
+        - BearerAuth: []
+      tags: [Orders & Escrow]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema:
+            type: string
+      responses:
+        200:
+          description: Escrow released and order marked complete
+
+  /orders/{id}/arrangement:
+    post:
+      summary: Submit handover arrangement logistics
+      security:
+        - BearerAuth: []
+      tags: [Orders & Escrow]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [handover_type, details]
+              properties:
+                handover_type:
+                  type: string
+                  enum: [pickup, dispatch, courier]
+                details:
+                  type: object
+      responses:
+        200:
+          description: Arrangement saved
+
+  /orders/{id}/messages:
+    get:
+      summary: In-app chat message thread
+      security:
+        - BearerAuth: []
+      tags: [Orders & Escrow]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        200:
+          description: List of messages
+    post:
+      summary: Send in-app chat message
+      security:
+        - BearerAuth: []
+      tags: [Orders & Escrow]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [body]
+              properties:
+                body:
+                  type: string
+                attachments:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        201:
+          description: Message sent
+
+  /wallet:
+    get:
+      summary: Current wallet balances
+      security:
+        - BearerAuth: []
+      tags: [Wallet & Ledger]
+      responses:
+        200:
+          description: Available and locked balance in kobo
+
+  /wallet/transactions:
+    get:
+      summary: Ledger statement history
+      security:
+        - BearerAuth: []
+      tags: [Wallet & Ledger]
+      responses:
+        200:
+          description: Paginated double-entry ledger transactions
+
+  /wallet/topups:
+    post:
+      summary: Initialize wallet top-up via Paystack
+      security:
+        - BearerAuth: []
+      tags: [Payments]
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [amount]
+              properties:
+                amount:
+                  type: integer
+                  description: Amount in kobo
+                  example: 500000
+      responses:
+        200:
+          description: Paystack checkout URL and payment reference
+
+  /wallet/withdrawals:
+    post:
+      summary: Request bank account withdrawal
+      security:
+        - BearerAuth: []
+      tags: [Payments]
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [amount, bank_account_id]
+              properties:
+                amount:
+                  type: integer
+                  description: Amount in kobo
+                  example: 200000
+                bank_account_id:
+                  type: integer
+      responses:
+        200:
+          description: Withdrawal queued for transfer
+    get:
+      summary: Withdrawal history
+      security:
+        - BearerAuth: []
+      tags: [Payments]
+      responses:
+        200:
+          description: List of withdrawals
+
+  /bank-accounts/verify:
+    post:
+      summary: Verify NUBAN bank account with KYC legal name match
+      security:
+        - BearerAuth: []
+      tags: [Payments]
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [account_number, bank_code]
+              properties:
+                account_number:
+                  type: string
+                  example: "0123456789"
+                bank_code:
+                  type: string
+                  example: "058"
+      responses:
+        200:
+          description: Bank account verified and linked
+
+  /bank-accounts:
+    get:
+      summary: List linked bank accounts
+      security:
+        - BearerAuth: []
+      tags: [Payments]
+      responses:
+        200:
+          description: Array of verified bank accounts
+
+  /webhooks/paystack:
+    post:
+      summary: Paystack webhook intake endpoint
+      description: Validates HMAC-SHA512 header against PAYSTACK_SECRET_KEY. Credits ledger and guards against replay.
+      tags: [Payments]
+      parameters:
+        - name: x-paystack-signature
+          in: header
+          required: true
+          schema:
+            type: string
+      responses:
+        200:
+          description: Webhook processed
+
+  /admin/kyc:
+    get:
+      summary: List KYC verification queue
+      security:
+        - BearerAuth: []
+      tags: [Admin]
+      responses:
+        200:
+          description: List of user KYC records
+
+  /admin/kyc/{id}/nin-photo:
+    get:
+      summary: Stream persisted provider NIN photo with audit logging
+      security:
+        - BearerAuth: []
+      tags: [Admin]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        200:
+          description: Image binary stream (image/jpeg)
+
+  /admin/ledger/propose-adjustment:
+    post:
+      summary: Propose manual ledger adjustment (Maker step)
+      security:
+        - BearerAuth: []
+      tags: [Admin Maker-Checker]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [target_user_id, amount, reason, direction]
+              properties:
+                target_user_id:
+                  type: integer
+                amount:
+                  type: integer
+                direction:
+                  type: string
+                  enum: [credit, debit]
+                reason:
+                  type: string
+      responses:
+        201:
+          description: Adjustment proposed awaiting second admin approval
+
+  /admin/ledger/adjustments/{id}/approve:
+    post:
+      summary: Approve manual adjustment (Checker step)
+      description: Rejects approval if requested by same admin (403 SELF_APPROVAL_PROHIBITED).
+      security:
+        - BearerAuth: []
+      tags: [Admin Maker-Checker]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        200:
+          description: Adjustment approved and posted to ledger
+
+  /admin/ledger/reconcile:
+    get:
+      summary: Run ledger parity and wallet balance invariant reconciliation
+      security:
+        - BearerAuth: []
+      tags: [Admin]
+      responses:
+        200:
+          description: Reconciliation audit results
+
+  /admin/disputes:
+    get:
+      summary: List open disputes
+      security:
+        - BearerAuth: []
+      tags: [Admin Disputes]
+      responses:
+        200:
+          description: List of disputes
+
+  /admin/disputes/{id}/resolve:
+    post:
+      summary: Resolve dispute with full or split settlement
+      security:
+        - BearerAuth: []
+      tags: [Admin Disputes]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [resolution, resolution_notes]
+              properties:
+                resolution:
+                  type: string
+                  enum: [buyer_refund, seller_release, split]
+                buyer_split_amount:
+                  type: integer
+                seller_split_amount:
+                  type: integer
+                resolution_notes:
+                  type: string
+      responses:
+        200:
+          description: Dispute resolved and ledger settled
+
+  /admin/auctions/{id}/kill-stream:
+    post:
+      summary: Emergency live stream kill-switch
+      security:
+        - BearerAuth: []
+      tags: [Admin Moderation]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason:
+                  type: string
+      responses:
+        200:
+          description: Live session killed
+
+  /admin/users/{id}/strike:
+    post:
+      summary: Issue strike to user
+      security:
+        - BearerAuth: []
+      tags: [Admin Moderation]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason, note]
+              properties:
+                reason:
+                  type: string
+                note:
+                  type: string
+      responses:
+        200:
+          description: Strike issued
+
+  /admin/users/{id}/suspend:
+    post:
+      summary: Suspend user account temporarily
+      security:
+        - BearerAuth: []
+      tags: [Admin Moderation]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [duration_days, reason]
+              properties:
+                duration_days:
+                  type: integer
+                reason:
+                  type: string
+      responses:
+        200:
+          description: Account suspended
+
+  /admin/users/{id}/ban:
+    post:
+      summary: Permanently ban user account
+      security:
+        - BearerAuth: []
+      tags: [Admin Moderation]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason:
+                  type: string
+      responses:
+        200:
+          description: Account banned
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: Sanctum
