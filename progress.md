@@ -27,7 +27,7 @@
 | **M11**| Trust, Safety & Anti-Fraud Moderation | Phase D | 🟢 Implemented | Reports intake, administrative strikes, temporary suspensions, permanent bans |
 | **M12**| Reputation, Ratings & Trust Scoring | Phase D | 🟢 Implemented | Post-order 2-way reviews, automatic recalculation of user rating and trust metrics |
 | **M13**| Admin Back-Office Operations | Phase C | 🟢 Implemented | Role-gated endpoints (`role:admin`), persisted NIN photo viewing with audit logging, dual-approver maker-checker manual adjustments |
-| **M14**| Mobile / Web Clients API Alignment | All | 🟢 Implemented | 50 API endpoints versioned under `/api/v1/`, uniform JSON errors and standard Eloquent API Resources, documented in `docs/openapi.yaml` |
+| **M14**| Mobile / Web Clients API Alignment & Modular Routing | All | 🟢 Implemented | 50 API endpoints modularized across domain route files in `routes/api/v1/` (`auth.php`, `auctions.php`, `orders.php`, `wallet.php`, `discovery.php`, `kyc.php`, `webhooks.php`, `admin.php`), uniform JSON errors and standard Eloquent API Resources, documented in `docs/openapi.yaml` |
 | **M15**| Analytics & Auditing Pipeline | Phase D | 🟢 Implemented | `admin_audit_logs`, `auction_events`, and double-entry transaction histories |
 | **Background Automation** | Scheduled Workers & Artisan Tasks | All | 🟢 Implemented | `orders:auto-release-escrow`, `auctions:mark-missed`, `auctions:send-reminders`, `ledger:reconcile` registered in `routes/console.php` |
 
