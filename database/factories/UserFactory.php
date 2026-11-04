@@ -18,10 +18,18 @@ class UserFactory extends Factory
 
     public function definition(): array
     {
+        $firstName = fake()->firstName();
+        $lastName = fake()->lastName();
+
         return [
-            'name' => fake()->name(),
+            'first_name' => $firstName,
+            'last_name' => $lastName,
+            'name' => "{$firstName} {$lastName}",
+            'date_of_birth' => now()->subYears(25)->toDateString(),
             'phone' => '+234'.fake()->unique()->numerify('80########'),
             'email' => fake()->unique()->safeEmail(),
+            'phone_verified_at' => now(),
+            'profile_completed_at' => now(),
             'email_verified_at' => now(),
             'kyc_status' => KycStatus::Pending,
             'rating' => 5.00,
@@ -31,6 +39,30 @@ class UserFactory extends Factory
             'is_banned' => false,
             'remember_token' => Str::random(10),
         ];
+    }
+
+    public function unonboarded(): static
+    {
+        return $this->state(fn () => [
+            'first_name' => null,
+            'last_name' => null,
+            'name' => 'LiveBids User',
+            'date_of_birth' => null,
+            'phone_verified_at' => null,
+            'profile_completed_at' => null,
+        ]);
+    }
+
+    public function phoneVerifiedOnly(): static
+    {
+        return $this->state(fn () => [
+            'first_name' => null,
+            'last_name' => null,
+            'name' => 'LiveBids User',
+            'date_of_birth' => null,
+            'phone_verified_at' => now(),
+            'profile_completed_at' => null,
+        ]);
     }
 
     public function verified(): static

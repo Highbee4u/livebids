@@ -8,6 +8,7 @@ use App\Domain\Identity\Enums\KycStatus;
 use App\Domain\Identity\Models\Device;
 use App\Domain\Identity\Models\KycRecord;
 use App\Domain\Identity\Models\Strike;
+use App\Domain\Identity\Models\UserAddress;
 use App\Domain\Ledger\Models\Wallet;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -25,10 +26,15 @@ class User extends Authenticatable
     protected $fillable = [
         'phone',
         'name',
+        'first_name',
+        'last_name',
         'legal_name',
+        'date_of_birth',
         'email',
         'password',
         'avatar_url',
+        'phone_verified_at',
+        'profile_completed_at',
         'kyc_status',
         'rating',
         'review_count',
@@ -52,6 +58,9 @@ class User extends Authenticatable
     protected function casts(): array
     {
         return [
+            'date_of_birth' => 'date',
+            'phone_verified_at' => 'datetime',
+            'profile_completed_at' => 'datetime',
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'kyc_status' => KycStatus::class,
@@ -89,6 +98,31 @@ class User extends Authenticatable
     public function strikes(): HasMany
     {
         return $this->hasMany(Strike::class);
+    }
+
+    public function addresses(): HasMany
+    {
+        return $this->hasMany(UserAddress::class);
+    }
+
+    public function primaryAddress(): HasOne
+    {
+        return $this->hasOne(UserAddress::class)->where('is_primary', true);
+    }
+
+    public function isPhoneVerified(): bool
+    {
+        return ! is_null($this->phone_verified_at);
+    }
+
+    public function isProfileCompleted(): bool
+    {
+        return ! is_null($this->profile_completed_at);
+    }
+
+    public function isOnboarded(): bool
+    {
+        return $this->isPhoneVerified() && $this->isProfileCompleted();
     }
 
     public function isKycVerified(): bool

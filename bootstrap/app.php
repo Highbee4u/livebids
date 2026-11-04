@@ -4,6 +4,7 @@ use App\Exceptions\ApiExceptionHandler;
 use App\Http\Middleware\FeatureFlagMiddleware;
 use App\Http\Middleware\IdempotencyKeyMiddleware;
 use App\Http\Middleware\KycGateMiddleware;
+use App\Http\Middleware\OnboardingGateMiddleware;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -27,6 +28,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'role_or_perm' => RoleOrPermissionMiddleware::class,
             'idempotency' => IdempotencyKeyMiddleware::class,
             'kyc.verified' => KycGateMiddleware::class,
+            'onboarded' => OnboardingGateMiddleware::class,
             'feature' => FeatureFlagMiddleware::class,
         ]);
     })

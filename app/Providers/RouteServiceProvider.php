@@ -33,6 +33,8 @@ class RouteServiceProvider extends ServiceProvider
     {
         $v1RouteFiles = [
             'auth' => base_path('routes/api/v1/auth.php'),
+            'onboarding' => base_path('routes/api/v1/onboarding.php'),
+            'locations' => base_path('routes/api/v1/locations.php'),
             'discovery' => base_path('routes/api/v1/discovery.php'),
             'kyc' => base_path('routes/api/v1/kyc.php'),
             'auctions' => base_path('routes/api/v1/auctions.php'),

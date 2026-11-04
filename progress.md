@@ -1,11 +1,11 @@
 # LiveBids Engineering Implementation Progress
 
 **Framework**: Laravel 13 (v13.39.0 API Only)  
-**Status**: Core Platform & Automation Fully Implemented, Hardened & Verified  
-**Automated Tests**: 33 Feature Tests (159 assertions, 0 errors, 100% passing)  
+**Status**: Core Platform, Onboarding Funnel & Automation Fully Implemented, Hardened & Verified  
+**Automated Tests**: 43 Feature Tests (212 assertions, 0 errors, 100% passing)  
 **Code Quality**: Formatted according to Laravel Pint standards (`vendor/bin/pint`)  
 **Git Repository**: Initialized with modular, domain-separated atomic commits on `main`  
-**API Specification**: OpenAPI 3.0 specification published at `docs/openapi.yaml` (50 endpoints)
+**API Specification**: OpenAPI 3.0 specification published at `docs/openapi.yaml` (57 endpoints)
 
 ---
 
@@ -14,7 +14,7 @@
 | Module ID | Description | Phase | Status | Notes |
 |---|---|---|---|---|
 | **M0** | Platform Foundation & Infrastructure | Phase A | 🟢 Implemented | Laravel 13 scaffold, Idempotency middleware, normalized API exception handler, `config/auction.php`, `config/video.php`, Reverb setup |
-| **M1** | Identity & Accounts (`welfare/verification`) | Phase A | 🟢 Implemented | Phone OTP via `welfare/notifications`, NIN verification via `welfare/verification`, duplicate NIN rejection, private disk photo persistence, KYC gate |
+| **M1** | Identity & Accounts (`welfare/verification`) | Phase A | 🟢 Implemented | Multi-step onboarding with staging table (`onboarding_requests`), 18+ age validation, pickup address, location dataset (Nigeria, 37 states, 774 LGAs), NIN verification via `welfare/verification`, duplicate NIN rejection, private disk photo persistence |
 | **M2** | Wallet & Double-Entry Ledger Engine | Phase A | 🟢 Implemented | Immutable ledger entries, atomic double-entry posts, available/locked accounts, `ledger:reconcile` artisan command, invariant validation |
 | **M3** | Payments Integration (Paystack) | Phase A | 🟢 Implemented | Topup checkouts, HMAC-SHA512 webhook intake, replay protection (`provider_events`), NUBAN name matching against KYC legal name, withdrawals |
 | **M4** | Auction Listing & Scheduling | Phase B | 🟢 Implemented | Categories, listing creation, hidden reserve price privacy, scheduling constraints, teaser video metadata |
@@ -27,7 +27,7 @@
 | **M11**| Trust, Safety & Anti-Fraud Moderation | Phase D | 🟢 Implemented | Reports intake, administrative strikes, temporary suspensions, permanent bans |
 | **M12**| Reputation, Ratings & Trust Scoring | Phase D | 🟢 Implemented | Post-order 2-way reviews, automatic recalculation of user rating and trust metrics |
 | **M13**| Admin Back-Office Operations | Phase C | 🟢 Implemented | Role-gated endpoints (`role:admin`), persisted NIN photo viewing with audit logging, dual-approver maker-checker manual adjustments |
-| **M14**| Mobile / Web Clients API Alignment & Provider Route Binding | All | 🟢 Implemented | 50 API endpoints bound at the ServiceProvider level via `App\Providers\RouteServiceProvider` mapping modular domain route files in `routes/api/v1/` (`auth.php`, `auctions.php`, `orders.php`, `wallet.php`, `discovery.php`, `kyc.php`, `webhooks.php`, `admin.php`), uniform JSON errors and standard Eloquent API Resources, documented in `docs/openapi.yaml` |
+| **M14**| Mobile / Web Clients API Alignment & Provider Route Binding | All | 🟢 Implemented | 57 API endpoints bound at the ServiceProvider level via `App\Providers\RouteServiceProvider` mapping modular domain route files in `routes/api/v1/` (`auth.php`, `onboarding.php`, `locations.php`, `auctions.php`, `orders.php`, `wallet.php`, `discovery.php`, `kyc.php`, `webhooks.php`, `admin.php`), uniform JSON errors and standard Eloquent API Resources, documented in `docs/openapi.yaml` |
 | **M15**| Analytics & Auditing Pipeline | Phase D | 🟢 Implemented | `admin_audit_logs`, `auction_events`, and double-entry transaction histories |
 | **Background Automation** | Scheduled Workers & Artisan Tasks | All | 🟢 Implemented | `orders:auto-release-escrow`, `auctions:mark-missed`, `auctions:send-reminders`, `ledger:reconcile` registered in `routes/console.php` |
 
@@ -39,8 +39,8 @@
 php artisan test
 ```
 ```
-Tests:    33 passed (159 assertions)
-Duration: 2.43s
+Tests:    43 passed (212 assertions)
+Duration: 7.30s
 Status:   100% Passed
 ```
 

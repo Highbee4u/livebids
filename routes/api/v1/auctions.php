@@ -18,8 +18,8 @@ Route::prefix('auctions')->group(function () {
     Route::get('{id}/bids', [BidController::class, 'leaderboard']);
 });
 
-// Authenticated Live Stream Participation & Reminders
-Route::middleware('auth:sanctum')->prefix('auctions')->group(function () {
+// Authenticated Live Stream Participation & Reminders (Must be onboarded)
+Route::middleware(['auth:sanctum', 'onboarded'])->prefix('auctions')->group(function () {
     Route::post('{id}/remind', [AuctionController::class, 'toggleReminder']);
     Route::post('{id}/live/join', [AuctionController::class, 'joinLive']);
 

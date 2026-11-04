@@ -10,6 +10,189 @@ servers:
     description: Production API Server
 
 paths:
+  /auth/register:
+    post:
+      summary: Initiate user registration (Staging Table intake)
+      description: Checks phone availability. If phone already exists and onboarded, returns 409. If new or incomplete, creates OnboardingRequest in staging table and dispatches SMS OTP via welfare-notifications.
+      tags: [Onboarding]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [phone]
+              properties:
+                phone:
+                  type: string
+                  example: "+2348012345678"
+                device_id:
+                  type: string
+                  example: "uuid-device-987"
+                platform:
+                  type: string
+                  enum: [android, ios, web]
+                  default: android
+                fcm_token:
+                  type: string
+      responses:
+        200:
+          description: Onboarding request initiated; OTP sent to phone
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: success
+                  data:
+                    type: object
+                    properties:
+                      identifier:
+                        type: string
+                        format: uuid
+                      status:
+                        type: string
+                        example: PENDING_OTP
+                      expires_in_seconds:
+                        type: integer
+                        example: 600
+        409:
+          description: Phone already registered and onboarded
+
+  /auth/register/verify-otp:
+    post:
+      summary: Verify onboarding phone OTP
+      description: Verifies 6-digit code against staging OnboardingRequest. Marks phone as verified in staging without creating core user record.
+      tags: [Onboarding]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [identifier, code]
+              properties:
+                identifier:
+                  type: string
+                  format: uuid
+                code:
+                  type: string
+                  example: "123456"
+      responses:
+        200:
+          description: Phone verified; prompt client to set up profile and address
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: success
+                  data:
+                    type: object
+                    properties:
+                      identifier:
+                        type: string
+                        format: uuid
+                      status:
+                        type: string
+                        example: PENDING_PROFILE
+        422:
+          description: Invalid OTP or expired onboarding session
+
+  /auth/profile/setup:
+    post:
+      summary: Complete user profile, address, and atomic account conversion
+      description: Validates 18+ age requirement, verifies LGA belongs to State, inserts core User, UserAddress, provisions ledger wallet, and issues Sanctum token.
+      tags: [Onboarding]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [identifier, first_name, last_name, date_of_birth, country_id, state_id, lga_id, street_address]
+              properties:
+                identifier:
+                  type: string
+                  format: uuid
+                first_name:
+                  type: string
+                  example: "Chidi"
+                last_name:
+                  type: string
+                  example: "Okonkwo"
+                date_of_birth:
+                  type: string
+                  format: date
+                  description: "User date of birth (must be at least 18 years old)"
+                  example: "1998-05-15"
+                email:
+                  type: string
+                  format: email
+                country_id:
+                  type: integer
+                  example: 1
+                state_id:
+                  type: integer
+                  example: 25
+                lga_id:
+                  type: integer
+                  example: 560
+                city:
+                  type: string
+                  example: "Ikeja"
+                street_address:
+                  type: string
+                  example: "10 Oba Akran Avenue"
+                postal_code:
+                  type: string
+                  example: "100001"
+      responses:
+        201:
+          description: User successfully onboarded; wallet created, Sanctum token issued
+        422:
+          description: Validation error (underage or invalid LGA/state combination)
+
+  /locations/countries:
+    get:
+      summary: List supported countries
+      tags: [Locations]
+      responses:
+        200:
+          description: List of active countries with currency and ISO codes
+
+  /locations/states:
+    get:
+      summary: List states
+      tags: [Locations]
+      parameters:
+        - name: country_id
+          in: query
+          required: false
+          schema:
+            type: integer
+      responses:
+        200:
+          description: List of states
+
+  /locations/states/{stateId}/cities:
+    get:
+      summary: List LGAs / cities belonging to a state
+      tags: [Locations]
+      parameters:
+        - name: stateId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        200:
+          description: List of LGAs in the given state
+
   /auth/otp/request:
     post:
       summary: Request phone OTP

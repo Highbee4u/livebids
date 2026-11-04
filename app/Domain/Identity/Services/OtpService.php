@@ -128,6 +128,8 @@ class OtpService
             $user = User::create([
                 'phone' => $normalizedPhone,
                 'name' => 'Bidder '.substr($normalizedPhone, -4),
+                'phone_verified_at' => now(),
+                'profile_completed_at' => now(), // Auto-completed for direct OTP login in dev/legacy
                 'fcm_token' => $fcmToken,
             ]);
 
@@ -137,6 +139,9 @@ class OtpService
             // Initialize ledger wallet for the user
             $this->ledgerService->getOrCreateWallet($user);
         } else {
+            if (! $user->phone_verified_at) {
+                $user->update(['phone_verified_at' => now()]);
+            }
             if ($fcmToken && $user->fcm_token !== $fcmToken) {
                 $user->update(['fcm_token' => $fcmToken]);
             }

@@ -11,7 +11,7 @@ use Illuminate\Support\Facades\Route;
 |--------------------------------------------------------------------------
 */
 
-Route::middleware('auth:sanctum')->prefix('orders')->group(function () {
+Route::middleware(['auth:sanctum', 'onboarded'])->prefix('orders')->group(function () {
     Route::get('/', [OrderController::class, 'myOrders']);
     Route::get('{id}', [OrderController::class, 'show']);
     Route::get('{id}/messages', [OrderController::class, 'messages']);
