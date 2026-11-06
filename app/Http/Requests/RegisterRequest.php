@@ -23,20 +23,6 @@ class RegisterRequest extends FormRequest
         ];
     }
 
-    /**
-     * Prepare the data for validation.
-     * Ensures raw JSON body is decoded even if client sent text/plain or omitted Content-Type header.
-     */
-    protected function prepareForValidation(): void
-    {
-        if (! $this->has('phone') && ! empty($this->getContent())) {
-            $decoded = json_decode($this->getContent(), true);
-            if (is_array($decoded)) {
-                $this->merge($decoded);
-            }
-        }
-    }
-
     public function messages(): array
     {
         return [

@@ -2,6 +2,7 @@
 
 use App\Exceptions\ApiExceptionHandler;
 use App\Http\Middleware\FeatureFlagMiddleware;
+use App\Http\Middleware\ForceJsonApiMiddleware;
 use App\Http\Middleware\IdempotencyKeyMiddleware;
 use App\Http\Middleware\KycGateMiddleware;
 use App\Http\Middleware\OnboardingGateMiddleware;
@@ -21,6 +22,12 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->statefulApi();
+
+        // Force JSON input/output globally on every API request.
+        // This ensures Content-Type: application/json is set even when
+        // the client omits or sends a wrong header (e.g. APIdog, curl
+        // without --header, or HTTP→HTTPS redirect that strips headers).
+        $middleware->prependToGroup('api', ForceJsonApiMiddleware::class);
 
         $middleware->alias([
             'role' => RoleMiddleware::class,
