@@ -68,6 +68,7 @@ class OnboardingTest extends TestCase
 
         $response = $this->postJson('/api/v1/auth/register', [
             'phone' => '+2348099887766',
+            'device_id' => 'device_xyz_1',
         ]);
 
         $response->assertStatus(409)
