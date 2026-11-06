@@ -1,6 +1,7 @@
 <?php
 
 use App\Exceptions\ApiExceptionHandler;
+use App\Http\Middleware\EnsureTermsAcceptedMiddleware;
 use App\Http\Middleware\FeatureFlagMiddleware;
 use App\Http\Middleware\ForceJsonApiMiddleware;
 use App\Http\Middleware\IdempotencyKeyMiddleware;
@@ -36,6 +37,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'idempotency' => IdempotencyKeyMiddleware::class,
             'kyc.verified' => KycGateMiddleware::class,
             'onboarded' => OnboardingGateMiddleware::class,
+            'terms.accepted' => EnsureTermsAcceptedMiddleware::class,
             'feature' => FeatureFlagMiddleware::class,
         ]);
     })
