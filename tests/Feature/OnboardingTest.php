@@ -11,9 +11,11 @@ use App\Domain\Identity\Models\Lga;
 use App\Domain\Identity\Models\OnboardingRequest;
 use App\Domain\Identity\Models\OtpCode;
 use App\Domain\Identity\Models\State;
+use App\Domain\Terms\Models\TermsAndCondition;
 use App\Models\User;
 use Database\Seeders\LocationSeeder;
 use Database\Seeders\RoleSeeder;
+use Database\Seeders\TermsAndConditionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
@@ -27,6 +29,7 @@ class OnboardingTest extends TestCase
         parent::setUp();
         $this->seed(RoleSeeder::class);
         $this->seed(LocationSeeder::class);
+        $this->seed(TermsAndConditionSeeder::class);
     }
 
     public function test_step_1_register_initiates_staging_request_without_creating_user(): void
@@ -258,6 +261,16 @@ class OnboardingTest extends TestCase
         // 4. Verify Staging Request marked as converted
         $staging->refresh();
         $this->assertEquals(OnboardingStatus::Converted, $staging->status);
+
+        // 5. Verify Automatic Initial Consent (General Terms & Privacy Policy)
+        $this->assertDatabaseHas('user_terms_acceptances', [
+            'user_id' => $user->id,
+            'terms_id' => TermsAndCondition::where('type', 'general')->first()->id,
+        ]);
+        $this->assertDatabaseHas('user_terms_acceptances', [
+            'user_id' => $user->id,
+            'terms_id' => TermsAndCondition::where('type', 'privacy_policy')->first()->id,
+        ]);
     }
 
     public function test_onboarding_gate_blocks_incomplete_users_from_protected_endpoints(): void

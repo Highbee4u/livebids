@@ -41,6 +41,7 @@ class RouteServiceProvider extends ServiceProvider
             'orders' => base_path('routes/api/v1/orders.php'),
             'wallet' => base_path('routes/api/v1/wallet.php'),
             'webhooks' => base_path('routes/api/v1/webhooks.php'),
+            'terms' => base_path('routes/api/v1/terms.php'),
             'admin' => base_path('routes/api/v1/admin.php'),
         ];
 

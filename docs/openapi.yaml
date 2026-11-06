@@ -1065,7 +1065,256 @@ paths:
                   type: string
       responses:
         200:
-          description: Account banned
+  /terms:
+    get:
+      summary: List all latest active terms across categories
+      tags: [Terms & Conditions]
+      responses:
+        200:
+          description: Active terms retrieved successfully
+
+  /terms/pending:
+    get:
+      summary: View all required active terms the authenticated user has not yet accepted
+      security:
+        - BearerAuth: []
+      tags: [Terms & Conditions]
+      parameters:
+        - name: type
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        200:
+          description: Pending terms list
+
+  /terms/my-acceptances:
+    get:
+      summary: View authenticated user acceptance history
+      security:
+        - BearerAuth: []
+      tags: [Terms & Conditions]
+      responses:
+        200:
+          description: Acceptance history retrieved
+
+  /terms/accept:
+    post:
+      summary: Record user acceptance/consent for a terms version
+      security:
+        - BearerAuth: []
+      tags: [Terms & Conditions]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [terms_id]
+              properties:
+                terms_id:
+                  type: integer
+      responses:
+        200:
+          description: Terms accepted successfully
+
+  /terms/{type}:
+    get:
+      summary: Read latest active version for a specific terms type
+      tags: [Terms & Conditions]
+      parameters:
+        - name: type
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [general, bidding_escrow, seller_agreement, privacy_policy, pickup_delivery]
+      responses:
+        200:
+          description: Terms document retrieved
+        404:
+          description: No active terms found for type
+
+  /terms/{type}/versions:
+    get:
+      summary: View version history of a specific terms type
+      tags: [Terms & Conditions]
+      parameters:
+        - name: type
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        200:
+          description: Version history retrieved
+
+  /admin/terms:
+    get:
+      summary: Paginated list of all terms versions
+      security:
+        - BearerAuth: []
+      tags: [Admin Terms]
+      parameters:
+        - name: type
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: is_active
+          in: query
+          required: false
+          schema:
+            type: boolean
+        - name: is_required
+          in: query
+          required: false
+          schema:
+            type: boolean
+      responses:
+        200:
+          description: Terms list retrieved
+    post:
+      summary: Create new terms draft or new version
+      security:
+        - BearerAuth: []
+      tags: [Admin Terms]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [title, type, version, content]
+              properties:
+                title:
+                  type: string
+                type:
+                  type: string
+                  enum: [general, bidding_escrow, seller_agreement, privacy_policy, pickup_delivery]
+                version:
+                  type: string
+                content:
+                  type: string
+                summary_of_changes:
+                  type: string
+                is_active:
+                  type: boolean
+                is_required:
+                  type: boolean
+                effective_date:
+                  type: string
+                  format: date-time
+      responses:
+        201:
+          description: Terms draft created
+
+  /admin/terms/{id}:
+    get:
+      summary: View terms details with compliance metrics
+      security:
+        - BearerAuth: []
+      tags: [Admin Terms]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        200:
+          description: Terms details and metrics
+    put:
+      summary: Update draft terms metadata or content
+      security:
+        - BearerAuth: []
+      tags: [Admin Terms]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                content:
+                  type: string
+                summary_of_changes:
+                  type: string
+                is_required:
+                  type: boolean
+                effective_date:
+                  type: string
+                  format: date-time
+      responses:
+        200:
+          description: Terms updated
+
+  /admin/terms/{id}/publish:
+    post:
+      summary: Publish and activate terms version (archives older version of same type)
+      security:
+        - BearerAuth: []
+      tags: [Admin Terms]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        200:
+          description: Version published and activated
+
+  /admin/terms/{id}/enforce:
+    post:
+      summary: Toggle mandatory user acceptance enforcement
+      security:
+        - BearerAuth: []
+      tags: [Admin Terms]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [is_required]
+              properties:
+                is_required:
+                  type: boolean
+      responses:
+        200:
+          description: Enforcement status updated
+
+  /admin/terms/{id}/audit-log:
+    get:
+      summary: Paginated acceptance audit log for a terms version
+      security:
+        - BearerAuth: []
+      tags: [Admin Terms]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        200:
+          description: Acceptance audit log
 
 components:
   securitySchemes:

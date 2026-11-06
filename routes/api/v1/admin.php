@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\V1\Admin\AdminAuctionController;
 use App\Http\Controllers\Api\V1\Admin\AdminDisputeController;
 use App\Http\Controllers\Api\V1\Admin\AdminKycController;
 use App\Http\Controllers\Api\V1\Admin\AdminLedgerController;
+use App\Http\Controllers\Api\V1\Admin\AdminTermsController;
 use App\Http\Controllers\Api\V1\Admin\AdminUserController;
 use Illuminate\Support\Facades\Route;
 
@@ -40,4 +41,15 @@ Route::middleware(['auth:sanctum', 'role:admin'])->prefix('admin')->group(functi
     Route::post('users/{id}/strike', [AdminUserController::class, 'strike']);
     Route::post('users/{id}/suspend', [AdminUserController::class, 'suspend']);
     Route::post('users/{id}/ban', [AdminUserController::class, 'ban']);
+
+    // Terms & Conditions Governance & Compliance Management
+    Route::prefix('terms')->group(function () {
+        Route::get('/', [AdminTermsController::class, 'index']);
+        Route::post('/', [AdminTermsController::class, 'store']);
+        Route::get('{id}', [AdminTermsController::class, 'show'])->whereNumber('id');
+        Route::put('{id}', [AdminTermsController::class, 'update'])->whereNumber('id');
+        Route::post('{id}/publish', [AdminTermsController::class, 'publish'])->whereNumber('id');
+        Route::post('{id}/enforce', [AdminTermsController::class, 'enforce'])->whereNumber('id');
+        Route::get('{id}/audit-log', [AdminTermsController::class, 'auditLog'])->whereNumber('id');
+    });
 });
