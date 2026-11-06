@@ -16,11 +16,11 @@ Route::middleware(['auth:sanctum', 'onboarded'])->prefix('orders')->group(functi
     Route::get('{id}', [OrderController::class, 'show']);
     Route::get('{id}/messages', [OrderController::class, 'messages']);
     Route::post('{id}/messages', [OrderController::class, 'sendMessage']);
-    Route::post('{id}/arrangement', [OrderController::class, 'submitArrangement']);
+    Route::post('{id}/arrangement', [OrderController::class, 'submitArrangement'])->middleware('terms.accepted:pickup_delivery');
 
     // Handover Code Release & Buyer Receipt Confirmation (KYC Required)
     Route::middleware('kyc.verified')->group(function () {
-        Route::post('{id}/confirm-handover', [OrderController::class, 'confirmHandover'])->middleware('idempotency');
-        Route::post('{id}/mark-received', [OrderController::class, 'markReceived'])->middleware('idempotency');
+        Route::post('{id}/confirm-handover', [OrderController::class, 'confirmHandover'])->middleware(['idempotency', 'terms.accepted:pickup_delivery']);
+        Route::post('{id}/mark-received', [OrderController::class, 'markReceived'])->middleware(['idempotency', 'terms.accepted:pickup_delivery']);
     });
 });

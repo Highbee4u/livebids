@@ -49,6 +49,28 @@ class TermsAndConditionSeeder extends Seeder
                 'is_required' => true,
                 'effective_date' => now()->subDay(),
             ],
+            [
+                'title' => 'Seller & Auctioneer Operating Agreement',
+                'slug' => 'seller-agreement-v1-0',
+                'type' => TermsType::SellerAgreement->value,
+                'version' => '1.0',
+                'content' => "# Seller & Auctioneer Operating Agreement\n\nSellers on LiveBids agree to accurately represent catalog items during live video broadcasts. Reserve prices are confidential and binding. Sellers commit to fulfilling winning orders within the designated dispatch window and are subject to seller penalty strikes for abandoned live streams or misrepresented goods.",
+                'summary_of_changes' => 'Initial seller obligations and auction broadcast rules.',
+                'is_active' => true,
+                'is_required' => true,
+                'effective_date' => now()->subDay(),
+            ],
+            [
+                'title' => 'Physical Item Inspection & Handover Protocol',
+                'slug' => 'pickup-delivery-v1-0',
+                'type' => TermsType::PickupDelivery->value,
+                'version' => '1.0',
+                'content' => "# Physical Item Inspection & Handover Protocol\n\nBuyers must inspect physical items at designated pickup locations before sharing the 6-digit handover code. Providing the handover code signals irreversible acceptance and authorizes immediate release of escrow funds to the seller. In cases of damaged or misrepresented items, buyers must open a dispute prior to sharing the code.",
+                'summary_of_changes' => 'Initial physical pickup verification and OTP settlement guidelines.',
+                'is_active' => true,
+                'is_required' => true,
+                'effective_date' => now()->subDay(),
+            ],
         ];
 
         foreach ($defaultTerms as $terms) {

@@ -49,17 +49,17 @@ class AdminTermsTest extends TestCase
 
         $response->assertOk()
             ->assertJsonPath('status', 'success')
-            ->assertJsonCount(3, 'data');
+            ->assertJsonCount(5, 'data');
     }
 
     public function test_admin_can_create_new_terms_version(): void
     {
         $payload = [
-            'title' => 'Seller & Auctioneer Agreement v1.0',
+            'title' => 'Seller & Auctioneer Agreement v2.0',
             'type' => 'seller_agreement',
-            'version' => '1.0',
-            'content' => '# Seller Agreement Content',
-            'summary_of_changes' => 'Initial seller terms',
+            'version' => '2.0',
+            'content' => '# Seller Agreement Content v2.0',
+            'summary_of_changes' => 'Revised seller terms',
             'is_active' => false,
             'is_required' => true,
         ];
@@ -70,11 +70,11 @@ class AdminTermsTest extends TestCase
         $response->assertStatus(201)
             ->assertJsonPath('status', 'success')
             ->assertJsonPath('data.type', 'seller_agreement')
-            ->assertJsonPath('data.version', '1.0');
+            ->assertJsonPath('data.version', '2.0');
 
         $this->assertDatabaseHas('terms_and_conditions', [
             'type' => 'seller_agreement',
-            'version' => '1.0',
+            'version' => '2.0',
             'created_by' => $this->admin->id,
         ]);
     }

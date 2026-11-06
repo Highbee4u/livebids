@@ -11,6 +11,7 @@ use App\Domain\Identity\Models\OnboardingRequest;
 use App\Domain\Identity\Models\OtpCode;
 use App\Domain\Identity\Models\UserAddress;
 use App\Domain\Ledger\Services\LedgerService;
+use App\Domain\Terms\Services\TermsService;
 use App\Exceptions\BusinessRuleException;
 use App\Models\User;
 use Carbon\Carbon;
@@ -25,7 +26,8 @@ class OnboardingService
     public function __construct(
         protected NotificationDispatcher $notifications,
         protected LedgerService $ledgerService,
-        protected LocationService $locationService
+        protected LocationService $locationService,
+        protected TermsService $termsService
     ) {}
 
     /**
@@ -267,6 +269,27 @@ class OnboardingService
 
             // Initialize Double-Entry Ledger Wallet
             $this->ledgerService->getOrCreateWallet($user);
+
+            // Record initial consent for General Terms and Privacy Policy
+            $generalTerms = $this->termsService->getActiveTermsByType('general');
+            if ($generalTerms) {
+                $this->termsService->acceptTerms(
+                    userId: (int) $user->id,
+                    termsId: (int) $generalTerms->id,
+                    ipAddress: $onboardingRequest->ip_address,
+                    userAgent: $onboardingRequest->user_agent
+                );
+            }
+
+            $privacyTerms = $this->termsService->getActiveTermsByType('privacy_policy');
+            if ($privacyTerms) {
+                $this->termsService->acceptTerms(
+                    userId: (int) $user->id,
+                    termsId: (int) $privacyTerms->id,
+                    ipAddress: $onboardingRequest->ip_address,
+                    userAgent: $onboardingRequest->user_agent
+                );
+            }
 
             // Bind device if provided
             if ($onboardingRequest->device_id) {

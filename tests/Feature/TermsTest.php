@@ -24,10 +24,16 @@ class TermsTest extends TestCase
         $this->seed(RoleSeeder::class);
         $this->seed(TermsAndConditionSeeder::class);
 
-        // Register temporary test route guarded by 'terms.accepted'
+        // Register temporary test route guarded by 'terms.accepted' (global)
         Route::middleware(['api', 'auth:sanctum', 'terms.accepted'])
             ->get('/api/v1/test-terms-guarded', function () {
                 return response()->json(['status' => 'success', 'message' => 'Passed terms check.']);
+            });
+
+        // Register temporary contextual route guarded by 'terms.accepted:bidding_escrow'
+        Route::middleware(['api', 'auth:sanctum', 'terms.accepted:bidding_escrow'])
+            ->post('/api/v1/test-bidding-guarded', function () {
+                return response()->json(['status' => 'success', 'message' => 'Bid action permitted.']);
             });
     }
 
@@ -37,7 +43,7 @@ class TermsTest extends TestCase
 
         $response->assertOk()
             ->assertJsonPath('status', 'success')
-            ->assertJsonCount(3, 'data');
+            ->assertJsonCount(5, 'data');
     }
 
     public function test_guest_can_read_specific_terms_type(): void
@@ -88,7 +94,7 @@ class TermsTest extends TestCase
 
         $response->assertOk()
             ->assertJsonPath('status', 'success')
-            ->assertJsonCount(3, 'data'); // all 3 seeded terms are required and unaccepted
+            ->assertJsonCount(5, 'data'); // all 5 seeded terms are required and unaccepted
     }
 
     public function test_user_can_accept_active_terms(): void
@@ -171,7 +177,7 @@ class TermsTest extends TestCase
 
         $response->assertStatus(403)
             ->assertJsonPath('error_code', 'TERMS_ACCEPTANCE_REQUIRED')
-            ->assertJsonCount(3, 'pending_terms');
+            ->assertJsonCount(5, 'pending_terms');
     }
 
     public function test_middleware_allows_consented_user_to_proceed(): void
@@ -194,5 +200,38 @@ class TermsTest extends TestCase
         $response->assertOk()
             ->assertJsonPath('status', 'success')
             ->assertJsonPath('message', 'Passed terms check.');
+    }
+
+    public function test_contextual_middleware_blocks_unconsented_action_and_returns_singular_required_term(): void
+    {
+        $user = User::factory()->create();
+
+        $response = $this->actingAs($user, 'sanctum')
+            ->postJson('/api/v1/test-bidding-guarded');
+
+        $response->assertStatus(403)
+            ->assertJsonPath('error_code', 'TERMS_ACCEPTANCE_REQUIRED')
+            ->assertJsonPath('required_term.type', 'bidding_escrow')
+            ->assertJsonPath('required_term.version', '1.0');
+    }
+
+    public function test_contextual_middleware_allows_action_after_accepting_specific_term(): void
+    {
+        $user = User::factory()->create();
+        $biddingTerms = TermsAndCondition::where('type', TermsType::BiddingEscrow->value)->firstOrFail();
+
+        // User accepts ONLY the bidding_escrow terms (without yet accepting pickup_delivery or seller_agreement)
+        UserTermsAcceptance::create([
+            'user_id' => $user->id,
+            'terms_id' => $biddingTerms->id,
+            'accepted_at' => now(),
+        ]);
+
+        $response = $this->actingAs($user, 'sanctum')
+            ->postJson('/api/v1/test-bidding-guarded');
+
+        $response->assertOk()
+            ->assertJsonPath('status', 'success')
+            ->assertJsonPath('message', 'Bid action permitted.');
     }
 }

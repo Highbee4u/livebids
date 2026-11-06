@@ -33,7 +33,23 @@ class EnsureTermsAcceptedMiddleware
             return $next($request);
         }
 
-        $pending = $this->termsService->getPendingTermsForUser((int) $user->id, $type);
+        // 1. Contextual / Progressive check for a specific terms type
+        if ($type) {
+            $requiredTerm = $this->termsService->getActiveTermsByType($type);
+
+            if ($requiredTerm && $requiredTerm->is_required && ! $this->termsService->hasAcceptedTerms((int) $user->id, $requiredTerm->id)) {
+                return response()->json([
+                    'message' => "You must review and accept the {$requiredTerm->title} before proceeding.",
+                    'error_code' => 'TERMS_ACCEPTANCE_REQUIRED',
+                    'required_term' => new TermsResource($requiredTerm),
+                ], 403);
+            }
+
+            return $next($request);
+        }
+
+        // 2. Global check for all pending mandatory terms
+        $pending = $this->termsService->getPendingTermsForUser((int) $user->id);
 
         if ($pending->isNotEmpty()) {
             return response()->json([
