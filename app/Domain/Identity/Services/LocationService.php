@@ -21,9 +21,11 @@ class LocationService
      */
     public function getCountries(): Collection
     {
-        return Cache::remember('locations:countries:active', self::CACHE_TTL, function () {
-            return Country::where('active', true)->orderBy('name')->get();
+        $data = Cache::remember('locations:countries:active', self::CACHE_TTL, function () {
+            return Country::where('active', true)->orderBy('name')->get()->toArray();
         });
+
+        return Country::hydrate($data);
     }
 
     /**
@@ -35,14 +37,16 @@ class LocationService
     {
         $cacheKey = $countryId ? "locations:states:country:{$countryId}" : 'locations:states:all';
 
-        return Cache::remember($cacheKey, self::CACHE_TTL, function () use ($countryId) {
+        $data = Cache::remember($cacheKey, self::CACHE_TTL, function () use ($countryId) {
             $query = State::orderBy('name');
             if ($countryId) {
                 $query->where('country_id', $countryId);
             }
 
-            return $query->get();
+            return $query->get()->toArray();
         });
+
+        return State::hydrate($data);
     }
 
     /**
@@ -52,9 +56,11 @@ class LocationService
      */
     public function getCitiesOrLgas(int $stateId): Collection
     {
-        return Cache::remember("locations:lgas:state:{$stateId}", self::CACHE_TTL, function () use ($stateId) {
-            return Lga::where('state_id', $stateId)->orderBy('name')->get();
+        $data = Cache::remember("locations:lgas:state:{$stateId}", self::CACHE_TTL, function () use ($stateId) {
+            return Lga::where('state_id', $stateId)->orderBy('name')->get()->toArray();
         });
+
+        return Lga::hydrate($data);
     }
 
     /**
