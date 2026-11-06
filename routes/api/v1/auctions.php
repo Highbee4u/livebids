@@ -25,10 +25,10 @@ Route::middleware(['auth:sanctum', 'onboarded'])->prefix('auctions')->group(func
 
     // KYC-Gated Seller & Bidding Operations
     Route::middleware('kyc.verified')->group(function () {
-        Route::post('/', [AuctionController::class, 'create'])->middleware('idempotency');
+        Route::post('/', [AuctionController::class, 'create'])->middleware(['idempotency', 'terms.accepted:seller_agreement']);
         Route::post('{id}/live/start', [AuctionController::class, 'startLive']);
         Route::post('{id}/select-winner', [AuctionController::class, 'selectWinner'])->middleware('idempotency');
         Route::post('{id}/end-unsold', [AuctionController::class, 'endUnsold']);
-        Route::post('{id}/bids', [BidController::class, 'placeBid']);
+        Route::post('{id}/bids', [BidController::class, 'placeBid'])->middleware('terms.accepted:bidding_escrow');
     });
 });
