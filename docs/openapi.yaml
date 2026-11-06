@@ -1,7 +1,10 @@
 openapi: 3.0.3
 info:
   title: LiveBids API
-  description: High-concurrency live video auction marketplace API platform built on Laravel 13 with double-entry ledger settlement, welfare-verification identity checks, and real-time WebSockets bidding.
+  description: >-
+    High-concurrency live video auction marketplace API platform built on Laravel 13
+    with double-entry ledger settlement, welfare-verification identity checks,
+    real-time WebSockets bidding via Laravel Reverb, and standardized ApiResponder envelopes.
   version: 1.0.0
 servers:
   - url: http://localhost:8000/api/v1
@@ -9,11 +12,47 @@ servers:
   - url: https://api.livebids.ng/api/v1
     description: Production API Server
 
+tags:
+  - name: Onboarding
+    description: Phone verification, staging intake, address, and profile completion
+  - name: Locations
+    description: Nigerian geographic data (Countries, States, LGAs/Cities)
+  - name: Authentication
+    description: Direct SMS OTP authentication, session rotation, and logout
+  - name: User Profile
+    description: Authenticated user profile management and public user metrics
+  - name: Identity & KYC
+    description: NIN identity verification and seller authorization
+  - name: Discovery
+    description: Category feeds, live now carousel, upcoming auctions, and reminders
+  - name: Auctions
+    description: Live stream auction listing, scheduling, winner selection, and cancellation
+  - name: Live Streaming
+    description: WebRTC / LiveKit publisher and subscriber room coordination
+  - name: Bidding Engine
+    description: High-concurrency live bid placement, lock ledger hold, and leaderboards
+  - name: Orders & Escrow
+    description: Post-auction escrow protection, delivery arrangements, and OTP/handover code release
+  - name: Wallet & Ledger
+    description: Double-entry account balance inspection and audit statement history
+  - name: Payments
+    description: Paystack card/virtual account top-ups, bank verification, withdrawals, and webhooks
+  - name: Terms & Conditions
+    description: Progressive consent, terms versioning, and compliance audit trail
+  - name: Admin
+    description: Back-office KYC review, disputes resolution, maker-checker adjustments, moderation, and policy enforcement
+
 paths:
+  # ==========================================
+  # ONBOARDING (STAGING TABLE INTAKE)
+  # ==========================================
   /auth/register:
     post:
       summary: Initiate user registration (Staging Table intake)
-      description: Checks phone availability. If phone already exists and onboarded, returns 409. If new or incomplete, creates OnboardingRequest in staging table and dispatches SMS OTP via welfare-notifications.
+      description: >-
+        Validates phone uniqueness. If already onboarded, returns 409 conflict.
+        If phone is new or onboarding is incomplete, creates an OnboardingRequest in staging
+        and dispatches a 6-digit SMS OTP via welfare-notifications.
       tags: [Onboarding]
       requestBody:
         required: true
@@ -28,43 +67,60 @@ paths:
                   example: "+2348012345678"
                 device_id:
                   type: string
-                  example: "uuid-device-987"
+                  example: "d9e8c7b6-a5f4-4e3d-2c1b-0a9b8c7d6e5f"
                 platform:
                   type: string
                   enum: [android, ios, web]
                   default: android
+                  example: "android"
                 fcm_token:
                   type: string
+                  example: "fcm_token_sample_abc123"
       responses:
         200:
-          description: Onboarding request initiated; OTP sent to phone
+          description: Onboarding intake created; SMS OTP dispatched
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  status:
-                    type: string
-                    example: success
-                  data:
-                    type: object
-                    properties:
-                      identifier:
-                        type: string
-                        format: uuid
-                      status:
-                        type: string
-                        example: PENDING_OTP
-                      expires_in_seconds:
-                        type: integer
-                        example: 600
+                $ref: '#/components/schemas/OnboardingInitiatedResponse'
+              example:
+                status: true
+                message: "Onboarding initiated. Verification OTP sent via SMS."
+                data:
+                  identifier: "738c1b03-d8a9-4adc-90a8-243a830ac938"
+                  status: "PENDING_OTP"
+                  expires_in_seconds: 600
         409:
-          description: Phone already registered and onboarded
+          description: Phone already attached to an active, onboarded account
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StandardErrorResponse'
+              example:
+                status: false
+                message: "This phone number is already registered and onboarded. Please log in instead."
+                error: "PHONE_ALREADY_ATTACHED"
+                error_code: "PHONE_ALREADY_ATTACHED"
+        422:
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationErrorResponse'
+              example:
+                status: false
+                message: "The phone field is required."
+                error: "VALIDATION_ERROR"
+                error_code: "VALIDATION_ERROR"
+                errors:
+                  phone: ["The phone field is required."]
 
   /auth/register/verify-otp:
     post:
       summary: Verify onboarding phone OTP
-      description: Verifies 6-digit code against staging OnboardingRequest. Marks phone as verified in staging without creating core user record.
+      description: >-
+        Verifies 6-digit SMS code against staging OnboardingRequest identifier.
+        Marks phone verified in staging without creating a core user record yet.
       tags: [Onboarding]
       requestBody:
         required: true
@@ -77,36 +133,87 @@ paths:
                 identifier:
                   type: string
                   format: uuid
+                  example: "738c1b03-d8a9-4adc-90a8-243a830ac938"
                 code:
                   type: string
                   example: "123456"
       responses:
         200:
-          description: Phone verified; prompt client to set up profile and address
+          description: Phone OTP verified; advance to profile setup
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  status:
-                    type: string
-                    example: success
-                  data:
-                    type: object
-                    properties:
-                      identifier:
-                        type: string
-                        format: uuid
-                      status:
-                        type: string
-                        example: PENDING_PROFILE
+                $ref: '#/components/schemas/OnboardingOtpVerifiedResponse'
+              example:
+                status: true
+                message: "Phone number verified successfully."
+                data:
+                  identifier: "738c1b03-d8a9-4adc-90a8-243a830ac938"
+                  status: "PENDING_PROFILE"
         422:
-          description: Invalid OTP or expired onboarding session
+          description: Invalid or expired OTP code
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StandardErrorResponse'
+              example:
+                status: false
+                message: "The verification code provided is invalid or has expired."
+                error: "OTP_INVALID"
+                error_code: "OTP_INVALID"
+
+  /auth/onboarding/otp/verify:
+    post:
+      summary: Verify onboarding phone OTP (Alias route)
+      description: Alternate endpoint route mapping to OnboardingController@verifyOtp for mobile app routing.
+      tags: [Onboarding]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [identifier, code]
+              properties:
+                identifier:
+                  type: string
+                  format: uuid
+                  example: "738c1b03-d8a9-4adc-90a8-243a830ac938"
+                code:
+                  type: string
+                  example: "123456"
+      responses:
+        200:
+          description: Phone OTP verified
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OnboardingOtpVerifiedResponse'
+              example:
+                status: true
+                message: "Phone number verified successfully."
+                data:
+                  identifier: "738c1b03-d8a9-4adc-90a8-243a830ac938"
+                  status: "PENDING_PROFILE"
+        422:
+          description: Invalid or expired OTP code
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StandardErrorResponse'
+              example:
+                status: false
+                message: "The verification code provided is invalid or has expired."
+                error: "OTP_INVALID"
+                error_code: "OTP_INVALID"
 
   /auth/profile/setup:
     post:
       summary: Complete user profile, address, and atomic account conversion
-      description: Validates 18+ age requirement, verifies LGA belongs to State, inserts core User, UserAddress, provisions ledger wallet, and issues Sanctum token.
+      description: >-
+        Finalizes registration. Enforces 18+ age restriction, validates LGA belongs to selected state,
+        atomically creates core User record, assigns public UUID identifier, saves UserAddress,
+        initializes zero-balance ledger wallet, and issues Sanctum bearer token.
       tags: [Onboarding]
       requestBody:
         required: true
@@ -119,6 +226,7 @@ paths:
                 identifier:
                   type: string
                   format: uuid
+                  example: "738c1b03-d8a9-4adc-90a8-243a830ac938"
                 first_name:
                   type: string
                   example: "Chidi"
@@ -128,11 +236,13 @@ paths:
                 date_of_birth:
                   type: string
                   format: date
-                  description: "User date of birth (must be at least 18 years old)"
+                  description: User date of birth (must be 18+ years old)
                   example: "1998-05-15"
                 email:
                   type: string
                   format: email
+                  nullable: true
+                  example: "chidi.okonkwo@example.com"
                 country_id:
                   type: integer
                   example: 1
@@ -150,24 +260,76 @@ paths:
                   example: "10 Oba Akran Avenue"
                 postal_code:
                   type: string
+                  nullable: true
                   example: "100001"
       responses:
         201:
-          description: User successfully onboarded; wallet created, Sanctum token issued
+          description: Profile completed and core account provisioned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProfileSetupResponse'
+              example:
+                status: true
+                message: "Profile setup completed successfully. Welcome to LiveBids!"
+                data:
+                  user:
+                    id: "8f6b158b-9d41-477d-9dc6-b4d081fdfd8e"
+                    identifier: "8f6b158b-9d41-477d-9dc6-b4d081fdfd8e"
+                    phone: "+2348012345678"
+                    name: "Chidi Okonkwo"
+                    first_name: "Chidi"
+                    last_name: "Okonkwo"
+                    email: "chidi.okonkwo@example.com"
+                    date_of_birth: "1998-05-15"
+                    is_onboarded: true
+                    is_kyc_verified: false
+                    rating: 0.0
+                    strikes_count: 0
+                  token: "1|laravel_sanctum_token_xyz9876543210"
+                  status: "ONBOARDING_COMPLETE"
         422:
-          description: Validation error (underage or invalid LGA/state combination)
+          description: Validation error (underage or invalid LGA/state mismatch)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationErrorResponse'
+              example:
+                status: false
+                message: "You must be at least 18 years of age to register on LiveBids."
+                error: "VALIDATION_ERROR"
+                error_code: "VALIDATION_ERROR"
+                errors:
+                  date_of_birth: ["You must be at least 18 years of age to register on LiveBids."]
 
+  # ==========================================
+  # LOCATIONS
+  # ==========================================
   /locations/countries:
     get:
       summary: List supported countries
       tags: [Locations]
       responses:
         200:
-          description: List of active countries with currency and ISO codes
+          description: List of supported countries with currency and ISO codes
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CountriesResponse'
+              example:
+                status: true
+                message: "Countries retrieved successfully."
+                data:
+                  - id: 1
+                    name: "Nigeria"
+                    iso2: "NG"
+                    iso3: "NGA"
+                    phone_code: "+234"
+                    currency: "NGN"
 
   /locations/states:
     get:
-      summary: List states
+      summary: List states for a country
       tags: [Locations]
       parameters:
         - name: country_id
@@ -175,9 +337,27 @@ paths:
           required: false
           schema:
             type: integer
+            default: 1
+          example: 1
       responses:
         200:
-          description: List of states
+          description: List of administrative states
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StatesResponse'
+              example:
+                status: true
+                message: "States retrieved successfully."
+                data:
+                  - id: 25
+                    country_id: 1
+                    name: "Lagos"
+                    code: "LA"
+                  - id: 15
+                    country_id: 1
+                    name: "Abuja Federal Capital Territory"
+                    code: "FC"
 
   /locations/states/{stateId}/cities:
     get:
@@ -189,14 +369,32 @@ paths:
           required: true
           schema:
             type: integer
+          example: 25
       responses:
         200:
-          description: List of LGAs in the given state
+          description: List of LGAs and cities in state
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CitiesResponse'
+              example:
+                status: true
+                message: "Cities retrieved successfully."
+                data:
+                  - id: 560
+                    state_id: 25
+                    name: "Ikeja"
+                  - id: 561
+                    state_id: 25
+                    name: "Lagos Island"
 
+  # ==========================================
+  # AUTHENTICATION
+  # ==========================================
   /auth/otp/request:
     post:
-      summary: Request phone OTP
-      description: Rate-limited to 5 requests per hour. Dispatches 6-digit SMS OTP via welfare-notifications.
+      summary: Request phone OTP for login or sensitive operations
+      description: Dispatches a 6-digit SMS OTP via welfare-notifications. Rate limited to 5 attempts per phone per hour.
       tags: [Authentication]
       requestBody:
         required: true
@@ -213,16 +411,38 @@ paths:
                   type: string
                   enum: [login, withdrawal_confirmation, admin_sensitive_action]
                   default: login
+                  example: "login"
+                device_id:
+                  type: string
+                  example: "d9e8c7b6-a5f4-4e3d-2c1b-0a9b8c7d6e5f"
       responses:
         200:
           description: OTP dispatched successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OtpRequestedResponse'
+              example:
+                status: true
+                message: "Verification code sent successfully via SMS."
+                data:
+                  expires_at: "2026-11-06T19:10:00Z"
         429:
           description: Rate limited
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StandardErrorResponse'
+              example:
+                status: false
+                message: "Too Many Requests. Please wait before requesting another OTP."
+                error: "TOO_MANY_REQUESTS"
+                error_code: "TOO_MANY_REQUESTS"
 
   /auth/otp/verify:
     post:
-      summary: Verify phone OTP
-      description: Verifies 6-digit code, provisions double-entry ledger wallet, binds device, and issues Sanctum token.
+      summary: Verify phone OTP and authenticate session
+      description: Verifies 6-digit code, verifies device binding, and issues Sanctum personal access token.
       tags: [Authentication]
       requestBody:
         required: true
@@ -238,17 +458,76 @@ paths:
                 code:
                   type: string
                   example: "123456"
+                purpose:
+                  type: string
+                  enum: [login, withdrawal_confirmation, admin_sensitive_action]
+                  default: login
                 device_id:
                   type: string
-                  example: "uuid-device-987"
+                  example: "d9e8c7b6-a5f4-4e3d-2c1b-0a9b8c7d6e5f"
                 platform:
                   type: string
                   enum: [android, ios, web]
+                  default: android
                 fcm_token:
                   type: string
+                  example: "fcm_token_sample_abc123"
       responses:
         200:
-          description: Authenticated successfully
+          description: Authenticated successfully; token issued
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthTokenResponse'
+              example:
+                status: true
+                message: "Authentication successful."
+                data:
+                  token: "2|laravel_sanctum_auth_token_sample"
+                  token_type: "Bearer"
+                  user:
+                    id: "8f6b158b-9d41-477d-9dc6-b4d081fdfd8e"
+                    identifier: "8f6b158b-9d41-477d-9dc6-b4d081fdfd8e"
+                    phone: "+2348012345678"
+                    name: "Chidi Okonkwo"
+                    is_kyc_verified: false
+        422:
+          description: Invalid OTP code or expired code
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StandardErrorResponse'
+              example:
+                status: false
+                message: "The verification code provided is invalid or has expired."
+                error: "OTP_INVALID"
+                error_code: "OTP_INVALID"
+
+  /auth/refresh:
+    post:
+      summary: Refresh authentication session token
+      description: Revokes the caller's current personal access token and issues a fresh replacement token.
+      security:
+        - BearerAuth: []
+      tags: [Authentication]
+      responses:
+        200:
+          description: Session token refreshed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthTokenResponse'
+              example:
+                status: true
+                message: "Session token refreshed successfully."
+                data:
+                  token: "3|new_sanctum_session_token_xyz"
+                  token_type: "Bearer"
+                  user:
+                    id: "8f6b158b-9d41-477d-9dc6-b4d081fdfd8e"
+                    identifier: "8f6b158b-9d41-477d-9dc6-b4d081fdfd8e"
+                    phone: "+2348012345678"
+                    name: "Chidi Okonkwo"
 
   /auth/logout:
     post:
@@ -258,17 +537,49 @@ paths:
       tags: [Authentication]
       responses:
         200:
-          description: Token revoked
+          description: Logged out and token revoked
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StandardMessageResponse'
+              example:
+                status: true
+                message: "Logged out successfully."
 
+  # ==========================================
+  # USER PROFILE
+  # ==========================================
   /me:
     get:
-      summary: Authenticated user profile and verification status
+      summary: Authenticated user profile and trust metrics
       security:
         - BearerAuth: []
       tags: [User Profile]
       responses:
         200:
-          description: User profile payload
+          description: User profile and account status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfileResponse'
+              example:
+                status: true
+                message: "User profile retrieved successfully."
+                data:
+                  user:
+                    id: "8f6b158b-9d41-477d-9dc6-b4d081fdfd8e"
+                    identifier: "8f6b158b-9d41-477d-9dc6-b4d081fdfd8e"
+                    phone: "+2348012345678"
+                    name: "Chidi Okonkwo"
+                    first_name: "Chidi"
+                    last_name: "Okonkwo"
+                    email: "chidi.okonkwo@example.com"
+                    is_onboarded: true
+                    is_kyc_verified: true
+                    pickup_area: "Ikeja"
+                    rating: 4.85
+                    strikes_count: 0
+                    roles: ["buyer", "seller"]
     patch:
       summary: Update profile name and FCM push notification token
       security:
@@ -282,16 +593,84 @@ paths:
               properties:
                 name:
                   type: string
+                  example: "Chidi C. Okonkwo"
                 fcm_token:
                   type: string
+                  example: "new_fcm_token_xyz"
+                pickup_area:
+                  type: string
+                  example: "Victoria Island, Lagos"
       responses:
         200:
-          description: Updated profile
+          description: Profile updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfileResponse'
+              example:
+                status: true
+                message: "Profile updated successfully."
+                data:
+                  user:
+                    id: "8f6b158b-9d41-477d-9dc6-b4d081fdfd8e"
+                    identifier: "8f6b158b-9d41-477d-9dc6-b4d081fdfd8e"
+                    name: "Chidi C. Okonkwo"
+                    pickup_area: "Victoria Island, Lagos"
 
+  /users/{id}/public:
+    get:
+      summary: View public profile and trust reputation metrics of any seller or bidder
+      tags: [User Profile]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Public UUID identifier or integer ID of the target user
+          schema:
+            type: string
+          example: "8f6b158b-9d41-477d-9dc6-b4d081fdfd8e"
+      responses:
+        200:
+          description: Public profile metrics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicProfileResponse'
+              example:
+                status: true
+                message: "Public profile retrieved successfully."
+                data:
+                  id: "8f6b158b-9d41-477d-9dc6-b4d081fdfd8e"
+                  identifier: "8f6b158b-9d41-477d-9dc6-b4d081fdfd8e"
+                  name: "Chidi O."
+                  avatar_url: "https://cdn.livebids.ng/avatars/user_8f6b.jpg"
+                  rating: 4.85
+                  review_count: 24
+                  strikes_count: 0
+                  pickup_area: "Ikeja"
+                  auctions_completed: 18
+                  member_since: "2026-02-15T10:00:00Z"
+        404:
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StandardErrorResponse'
+              example:
+                status: false
+                message: "Resource not found."
+                error: "RESOURCE_NOT_FOUND"
+                error_code: "RESOURCE_NOT_FOUND"
+
+  # ==========================================
+  # IDENTITY & KYC
+  # ==========================================
   /kyc/submit:
     post:
-      summary: Submit National Identification Number (NIN)
-      description: Validates NIN via welfare-verification package. Persists decoded base64 photo to private storage and assigns seller role.
+      summary: Submit National Identification Number (NIN) for verification
+      description: >-
+        Validates 11-digit NIN via welfare-verification package. Enforces strict NIN uniqueness across accounts.
+        Persists base64 photo to private cloud storage, extracts legal name, and promotes user to 'seller' role upon success.
       security:
         - BearerAuth: []
       tags: [Identity & KYC]
@@ -310,9 +689,30 @@ paths:
                   example: "12345678901"
       responses:
         200:
-          description: KYC verified successfully
+          description: KYC verified successfully; seller role granted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KycSubmitResponse'
+              example:
+                status: true
+                message: "KYC verified successfully. You are now authorized to list and host auctions."
+                data:
+                  kyc_status: "verified"
+                  verified_name: "CHIDI CHUKWUDI OKONKWO"
+                  nin_masked: "123*****901"
+                  verified_at: "2026-11-06T18:00:00Z"
         409:
           description: Duplicate NIN detected
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StandardErrorResponse'
+              example:
+                status: false
+                message: "This National Identification Number is already registered to another account."
+                error: "DUPLICATE_NIN"
+                error_code: "DUPLICATE_NIN"
 
   /kyc/status:
     get:
@@ -322,7 +722,48 @@ paths:
       tags: [Identity & KYC]
       responses:
         200:
-          description: Status of KYC submission
+          description: Current KYC status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KycStatusResponse'
+              example:
+                status: true
+                message: "KYC status retrieved successfully."
+                data:
+                  is_kyc_verified: true
+                  status: "verified"
+                  submitted_at: "2026-11-06T18:00:00Z"
+                  rejection_reason: null
+
+  # ==========================================
+  # DISCOVERY & FEEDS
+  # ==========================================
+  /categories:
+    get:
+      summary: List all active auction categories
+      tags: [Discovery]
+      responses:
+        200:
+          description: Array of auction categories
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CategoriesResponse'
+              example:
+                status: true
+                message: "Categories retrieved successfully."
+                data:
+                  - id: 1
+                    name: "Smartphones & Electronics"
+                    slug: "smartphones-electronics"
+                    icon_url: "https://cdn.livebids.ng/categories/phones.png"
+                    auctions_count: 42
+                  - id: 2
+                    name: "Vehicles & Motors"
+                    slug: "vehicles-motors"
+                    icon_url: "https://cdn.livebids.ng/categories/cars.png"
+                    auctions_count: 15
 
   /feed/upcoming:
     get:
@@ -331,11 +772,44 @@ paths:
       parameters:
         - name: category_id
           in: query
+          required: false
           schema:
             type: integer
+          example: 1
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 1
       responses:
         200:
-          description: Paginated list of upcoming auctions
+          description: Paginated upcoming auctions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UpcomingAuctionsResponse'
+              example:
+                status: true
+                message: "Upcoming auctions retrieved successfully."
+                data:
+                  - id: 101
+                    title: "iPhone 15 Pro Max 256GB Natural Titanium"
+                    condition: "like_new"
+                    starting_bid_kobo: 60000000
+                    scheduled_start_at: "2026-11-07T14:00:00Z"
+                    teaser_video_url: "https://cdn.livebids.ng/teasers/iphone15.mp4"
+                    pickup_area: "Ikeja, Lagos"
+                    seller:
+                      id: "8f6b158b-9d41-477d-9dc6-b4d081fdfd8e"
+                      name: "Chidi O."
+                      rating: 4.85
+                    has_reminder: false
+                pagination:
+                  current_page: 1
+                  last_page: 3
+                  per_page: 15
+                  total: 35
 
   /feed/live:
     get:
@@ -343,19 +817,57 @@ paths:
       tags: [Discovery]
       responses:
         200:
-          description: List of auctions currently broadcasting live
+          description: List of auctions actively broadcasting live
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LiveAuctionsResponse'
+              example:
+                status: true
+                message: "Live auctions retrieved successfully."
+                data:
+                  - id: 88
+                    title: "MacBook Pro M3 Max 36GB RAM 1TB"
+                    status: "live"
+                    current_highest_bid_kobo: 185000000
+                    live_viewers_count: 142
+                    live_started_at: "2026-11-06T18:40:00Z"
+                    time_remaining_seconds: 78
+                    livekit_room: "auction_room_88"
 
-  /categories:
-    get:
-      summary: List all active auction categories
+  /auctions/{id}/remind:
+    post:
+      summary: Toggle calendar and push reminder for an upcoming auction
+      security:
+        - BearerAuth: []
       tags: [Discovery]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+          example: 101
       responses:
         200:
-          description: Array of categories
+          description: Reminder state toggled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReminderToggledResponse'
+              example:
+                status: true
+                message: "Reminder set successfully."
+                data:
+                  auction_id: 101
+                  has_reminder: true
 
+  # ==========================================
+  # AUCTIONS
+  # ==========================================
   /auctions:
     post:
-      summary: Create new auction listing
+      summary: Create and schedule a new live auction listing
       security:
         - BearerAuth: []
       tags: [Auctions]
@@ -365,47 +877,71 @@ paths:
           required: true
           schema:
             type: string
+          example: "auc_create_987654"
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
-              required: [title, pickup_area, starting_bid, scheduled_start_at]
+              required: [title, category_id, condition, starting_bid, scheduled_start_at, pickup_area]
               properties:
                 title:
                   type: string
+                  example: "Sony PlayStation 5 Slim Edition + 2 Controllers"
                 description:
                   type: string
+                  example: "Brand new in box, sealed with warranty."
                 category_id:
                   type: integer
+                  example: 1
                 condition:
                   type: string
                   enum: [brand_new, like_new, gently_used, for_parts]
+                  example: "brand_new"
                 starting_bid:
                   type: integer
-                  description: Amount in kobo
-                  example: 100000
+                  description: Minimum starting bid in kobo
+                  example: 35000000
                 reserve_price:
                   type: integer
-                  description: Confidential minimum price in kobo (masked from buyers)
+                  description: Confidential reserve price in kobo (masked from buyers)
+                  example: 45000000
                 pickup_area:
                   type: string
-                  example: "Ikeja, Lagos"
+                  example: "Lekki Phase 1, Lagos"
                 scheduled_start_at:
                   type: string
                   format: date-time
+                  example: "2026-11-08T16:00:00Z"
                 live_duration_seconds:
                   type: integer
                   default: 180
+                  example: 180
       responses:
         201:
-          description: Auction created
+          description: Auction created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuctionDetailResponse'
+              example:
+                status: true
+                message: "Auction listing scheduled successfully."
+                data:
+                  id: 102
+                  title: "Sony PlayStation 5 Slim Edition + 2 Controllers"
+                  condition: "brand_new"
+                  status: "scheduled"
+                  starting_bid_kobo: 35000000
+                  reserve_price_kobo: 45000000
+                  pickup_area: "Lekki Phase 1, Lagos"
+                  scheduled_start_at: "2026-11-08T16:00:00Z"
 
   /auctions/{id}:
     get:
-      summary: Auction details
-      description: Returns auction details. Reserve price is strictly redacted unless viewed by seller.
+      summary: View auction details and room specifications
+      description: Returns auction details. Note that reserve_price_kobo is strictly redacted for buyers and only visible to the creator.
       tags: [Auctions]
       parameters:
         - name: id
@@ -413,74 +949,37 @@ paths:
           required: true
           schema:
             type: integer
+          example: 102
       responses:
         200:
-          description: Auction payload
-
-  /auctions/{id}/live/start:
-    post:
-      summary: Seller begins live stream session
-      security:
-        - BearerAuth: []
-      tags: [Live Streaming]
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        200:
-          description: LiveKit publisher token and room connection details
-
-  /auctions/{id}/live/join:
-    post:
-      summary: Buyer joins live stream room
-      security:
-        - BearerAuth: []
-      tags: [Live Streaming]
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        200:
-          description: LiveKit subscriber token
-
-  /auctions/{id}/bids:
-    post:
-      summary: Place a bid with atomic Redis mutex locking
-      security:
-        - BearerAuth: []
-      tags: [Bidding Engine]
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [amount]
-              properties:
-                amount:
-                  type: integer
-                  description: Bid amount in kobo
-                  example: 150000
-      responses:
-        201:
-          description: Bid placed and broadcast via Reverb
+          description: Auction details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuctionDetailResponse'
+              example:
+                status: true
+                message: "Auction details retrieved successfully."
+                data:
+                  id: 102
+                  title: "Sony PlayStation 5 Slim Edition + 2 Controllers"
+                  status: "scheduled"
+                  starting_bid_kobo: 35000000
+                  reserve_price_kobo: null
+                  pickup_area: "Lekki Phase 1, Lagos"
+                  scheduled_start_at: "2026-11-08T16:00:00Z"
+                  seller:
+                    id: "8f6b158b-9d41-477d-9dc6-b4d081fdfd8e"
+                    name: "Chidi O."
+                    rating: 4.85
 
   /auctions/{id}/select-winner:
     post:
       summary: Seller selects winning bid
-      description: Closes auction instantly, moves winner funds to escrow, and unlocks losing bidders.
+      description: >-
+        Concludes auction instantly. Moves winner's locked wallet funds to escrow,
+        releases all losing bidders' held funds back to available ledger balance,
+        and generates Order with encrypted handover verification code.
       security:
         - BearerAuth: []
       tags: [Auctions]
@@ -490,11 +989,13 @@ paths:
           required: true
           schema:
             type: integer
+          example: 102
         - name: Idempotency-Key
           in: header
           required: true
           schema:
             type: string
+          example: "sel_win_102_xyz"
       requestBody:
         required: true
         content:
@@ -505,13 +1006,30 @@ paths:
               properties:
                 bid_id:
                   type: integer
+                  example: 543
       responses:
         200:
-          description: Order created in escrow
+          description: Winner selected and escrow order generated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SelectWinnerResponse'
+              example:
+                status: true
+                message: "Winning bid selected successfully. Order moved to escrow."
+                data:
+                  order:
+                    id: 301
+                    auction_id: 102
+                    buyer_id: "9c8b7a6f-5e4d-3c2b-1a0f-9e8d7c6b5a4f"
+                    amount_kobo: 48000000
+                    commission_kobo: 4800000
+                    status: "awaiting_handover"
 
   /auctions/{id}/end-unsold:
     post:
-      summary: Seller ends auction without sale
+      summary: Seller ends live stream without a sale
+      description: Closes live session, updates status to unsold, and unlocks all bidders' funds atomically.
       security:
         - BearerAuth: []
       tags: [Auctions]
@@ -521,40 +1039,237 @@ paths:
           required: true
           schema:
             type: integer
+          example: 102
       responses:
         200:
-          description: Auction closed and funds unlocked
+          description: Auction closed unsold; funds released
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StandardMessageResponse'
+              example:
+                status: true
+                message: "Auction closed unsold. All bidder funds unlocked."
 
-  /auctions/{id}/remind:
+  # ==========================================
+  # LIVE STREAMING
+  # ==========================================
+  /auctions/{id}/live/start:
     post:
-      summary: Toggle upcoming auction reminder
+      summary: Seller begins live stream session
+      description: Initializes LiveKit room, begins 180s live timer, and returns LiveKit publisher token.
       security:
         - BearerAuth: []
-      tags: [Discovery]
+      tags: [Live Streaming]
       parameters:
         - name: id
           in: path
           required: true
           schema:
             type: integer
+          example: 102
       responses:
         200:
-          description: Reminder toggled
+          description: Publisher token and connection credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LiveStreamTokenResponse'
+              example:
+                status: true
+                message: "Live stream initiated successfully."
+                data:
+                  room_name: "auction_room_102"
+                  token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.livekit_publisher_token"
+                  server_url: "wss://livekit.livebids.ng"
+                  duration_seconds: 180
 
+  /auctions/{id}/live/join:
+    post:
+      summary: Buyer joins live stream room
+      description: Returns subscriber token and connects user to LiveKit WebRTC broadcast.
+      security:
+        - BearerAuth: []
+      tags: [Live Streaming]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+          example: 102
+      responses:
+        200:
+          description: Subscriber token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LiveStreamTokenResponse'
+              example:
+                status: true
+                message: "Joined live stream room."
+                data:
+                  room_name: "auction_room_102"
+                  token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.livekit_subscriber_token"
+                  server_url: "wss://livekit.livebids.ng"
+
+  # ==========================================
+  # BIDDING ENGINE
+  # ==========================================
+  /auctions/{id}/bids:
+    get:
+      summary: View live auction bid leaderboard
+      description: Retrieves ranked list of highest active bids with tie-breaking and bidder masking.
+      tags: [Bidding Engine]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+          example: 102
+      responses:
+        200:
+          description: Ranked active leaderboard
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BidLeaderboardResponse'
+              example:
+                status: true
+                message: "Leaderboard retrieved successfully."
+                data:
+                  auction_id: 102
+                  leaderboard:
+                    - rank: 1
+                      bid_id: 543
+                      amount_kobo: 48000000
+                      bidder_masked: "Bidder ***4567"
+                      placed_at: "2026-11-06T18:42:15Z"
+                    - rank: 2
+                      bid_id: 540
+                      amount_kobo: 46000000
+                      bidder_masked: "Bidder ***9012"
+                      placed_at: "2026-11-06T18:41:50Z"
+    post:
+      summary: Place or raise bid with atomic Redis mutex locking
+      description: >-
+        Verifies wallet balance, places atomic Redis lock, executes incremental lock ledger transfer,
+        extends anti-sniping timer if placed in final 30s, and broadcasts update via Laravel Reverb.
+      security:
+        - BearerAuth: []
+      tags: [Bidding Engine]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+          example: 102
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [amount_kobo]
+              properties:
+                amount_kobo:
+                  type: integer
+                  description: Bid amount in kobo (must satisfy minimum 5% increment)
+                  example: 50000000
+                client_request_id:
+                  type: string
+                  example: "bid_req_uuid_12345"
+      responses:
+        201:
+          description: Bid placed and broadcast
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlaceBidResponse'
+              example:
+                status: true
+                message: "Bid placed successfully!"
+                data:
+                  bid:
+                    id: 545
+                    auction_id: 102
+                    amount_kobo: 50000000
+                    status: "active"
+                    created_at: "2026-11-06T18:43:00Z"
+                  leaderboard:
+                    - rank: 1
+                      bid_id: 545
+                      amount_kobo: 50000000
+                      bidder_masked: "Bidder ***4567"
+        403:
+          description: Bid prohibited (e.g. self-bidding or missing terms consent)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StandardErrorResponse'
+              example:
+                status: false
+                message: "Sellers cannot place bids on their own auction."
+                error: "SELF_BIDDING_PROHIBITED"
+                error_code: "SELF_BIDDING_PROHIBITED"
+        422:
+          description: Bid below minimum increment or insufficient wallet balance
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StandardErrorResponse'
+              example:
+                status: false
+                message: "Your available wallet balance is insufficient to place this bid."
+                error: "INSUFFICIENT_FUNDS"
+                error_code: "INSUFFICIENT_FUNDS"
+
+  # ==========================================
+  # ORDERS & ESCROW
+  # ==========================================
   /orders:
     get:
-      summary: List authenticated user orders
+      summary: List authenticated user orders (buyer and seller)
       security:
         - BearerAuth: []
       tags: [Orders & Escrow]
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [awaiting_handover, completed, disputed, cancelled]
+          example: "awaiting_handover"
       responses:
         200:
-          description: Orders list
+          description: Paginated list of user orders
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrdersListResponse'
+              example:
+                status: true
+                message: "Orders retrieved successfully."
+                data:
+                  - id: 301
+                    auction_title: "Sony PlayStation 5 Slim Edition"
+                    amount_kobo: 48000000
+                    status: "awaiting_handover"
+                    seller_name: "Chidi O."
+                    created_at: "2026-11-06T18:45:00Z"
+                pagination:
+                  current_page: 1
+                  last_page: 1
+                  per_page: 15
+                  total: 1
 
   /orders/{id}:
     get:
       summary: Order details
-      description: Exposes 6-digit handover code only when requested by buyer. Code is masked for seller.
+      description: Returns full escrow status. Handover code is revealed ONLY to the buyer.
       security:
         - BearerAuth: []
       tags: [Orders & Escrow]
@@ -564,14 +1279,32 @@ paths:
           required: true
           schema:
             type: integer
+          example: 301
       responses:
         200:
           description: Order details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderDetailResponse'
+              example:
+                status: true
+                message: "Order details retrieved successfully."
+                data:
+                  id: 301
+                  auction_id: 102
+                  status: "awaiting_handover"
+                  amount_kobo: 48000000
+                  commission_kobo: 4800000
+                  handover_code: "482910"
+                  deadline_at: "2026-11-09T18:45:00Z"
 
   /orders/{id}/confirm-handover:
     post:
       summary: Seller submits 6-digit buyer handover code
-      description: Verifies code hash with attempt limits and 30-min cooldown. Releases escrow to seller minus commission.
+      description: >-
+        Verifies code against bcrypt hash. Enforces 5-attempt limit with 30-minute lockout.
+        Upon success, releases held escrow funds to seller's available wallet balance and deducts 10% commission.
       security:
         - BearerAuth: []
       tags: [Orders & Escrow]
@@ -581,11 +1314,13 @@ paths:
           required: true
           schema:
             type: integer
+          example: 301
         - name: Idempotency-Key
           in: header
           required: true
           schema:
             type: string
+          example: "handover_conf_301"
       requestBody:
         required: true
         content:
@@ -596,14 +1331,38 @@ paths:
               properties:
                 code:
                   type: string
-                  example: "123456"
+                  example: "482910"
       responses:
         200:
           description: Escrow released and order completed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderCompletedResponse'
+              example:
+                status: true
+                message: "Handover confirmed! ₦43,200.00 credited to your available balance."
+                data:
+                  order_id: 301
+                  status: "completed"
+                  seller_payout_kobo: 43200000
+                  commission_kobo: 4800000
+        422:
+          description: Invalid handover code
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StandardErrorResponse'
+              example:
+                status: false
+                message: "The handover verification code provided is incorrect. 4 attempts remaining."
+                error: "INVALID_HANDOVER_CODE"
+                error_code: "INVALID_HANDOVER_CODE"
 
   /orders/{id}/mark-received:
     post:
       summary: Buyer marks item as received
+      description: Alternative buyer confirmation release. Unlocks escrow directly to the seller.
       security:
         - BearerAuth: []
       tags: [Orders & Escrow]
@@ -613,18 +1372,21 @@ paths:
           required: true
           schema:
             type: integer
-        - name: Idempotency-Key
-          in: header
-          required: true
-          schema:
-            type: string
+          example: 301
       responses:
         200:
-          description: Escrow released and order marked complete
+          description: Escrow released
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StandardMessageResponse'
+              example:
+                status: true
+                message: "Item marked as received. Escrow funds released to seller."
 
   /orders/{id}/arrangement:
     post:
-      summary: Submit handover arrangement logistics
+      summary: Submit handover logistics arrangement
       security:
         - BearerAuth: []
       tags: [Orders & Escrow]
@@ -634,6 +1396,7 @@ paths:
           required: true
           schema:
             type: integer
+          example: 301
       requestBody:
         required: true
         content:
@@ -645,15 +1408,26 @@ paths:
                 handover_type:
                   type: string
                   enum: [pickup, dispatch, courier]
+                  example: "pickup"
                 details:
                   type: object
+                  example:
+                    location: "Ikeja City Mall, Food Court"
+                    meeting_time: "2026-11-07T12:00:00Z"
       responses:
         200:
           description: Arrangement saved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StandardMessageResponse'
+              example:
+                status: true
+                message: "Handover arrangement submitted successfully."
 
   /orders/{id}/messages:
     get:
-      summary: In-app chat message thread
+      summary: In-app order chat message thread
       security:
         - BearerAuth: []
       tags: [Orders & Escrow]
@@ -663,11 +1437,25 @@ paths:
           required: true
           schema:
             type: integer
+          example: 301
       responses:
         200:
-          description: List of messages
+          description: List of chat messages
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderMessagesResponse'
+              example:
+                status: true
+                message: "Messages retrieved successfully."
+                data:
+                  - id: 12
+                    sender_id: "8f6b158b-9d41-477d-9dc6-b4d081fdfd8e"
+                    sender_name: "Chidi O."
+                    body: "Hello! I am ready at the meeting spot."
+                    created_at: "2026-11-07T12:05:00Z"
     post:
-      summary: Send in-app chat message
+      summary: Send in-app chat message on an active order
       security:
         - BearerAuth: []
       tags: [Orders & Escrow]
@@ -677,6 +1465,7 @@ paths:
           required: true
           schema:
             type: integer
+          example: 301
       requestBody:
         required: true
         content:
@@ -687,37 +1476,102 @@ paths:
               properties:
                 body:
                   type: string
-                attachments:
-                  type: array
-                  items:
-                    type: string
+                  example: "I just parked outside. Coming in now."
       responses:
         201:
           description: Message sent
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StandardMessageResponse'
+              example:
+                status: true
+                message: "Message sent successfully."
 
+  # ==========================================
+  # WALLET & LEDGER
+  # ==========================================
   /wallet:
     get:
-      summary: Current wallet balances
+      summary: View authenticated user's ledger wallet balances
       security:
         - BearerAuth: []
       tags: [Wallet & Ledger]
       responses:
         200:
-          description: Available and locked balance in kobo
+          description: Available, locked, and total ledger balance in kobo
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WalletBalanceResponse'
+              example:
+                status: true
+                message: "Wallet balance retrieved successfully."
+                data:
+                  available_balance_kobo: 75000000
+                  locked_balance_kobo: 50000000
+                  total_balance_kobo: 125000000
+                  currency: "NGN"
 
   /wallet/transactions:
     get:
-      summary: Ledger statement history
+      summary: Double-entry ledger audit statement history
       security:
         - BearerAuth: []
       tags: [Wallet & Ledger]
+      parameters:
+        - name: account
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [available, locked]
+          example: "available"
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 1
       responses:
         200:
-          description: Paginated double-entry ledger transactions
+          description: Paginated ledger statement
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WalletTransactionsResponse'
+              example:
+                status: true
+                message: "Wallet transactions retrieved successfully."
+                data:
+                  - id: 981
+                    direction: "credit"
+                    account: "available"
+                    amount_kobo: 100000000
+                    ref_type: "topup"
+                    ref_id: "topup_paystack_ref_987"
+                    description: "Card Topup via Paystack"
+                    created_at: "2026-11-05T14:30:00Z"
+                  - id: 982
+                    direction: "debit"
+                    account: "available"
+                    amount_kobo: 50000000
+                    ref_type: "bid_lock"
+                    ref_id: "bid_545"
+                    description: "Bid lock on auction #102"
+                    created_at: "2026-11-06T18:43:00Z"
+                pagination:
+                  current_page: 1
+                  last_page: 1
+                  per_page: 15
+                  total: 2
 
+  # ==========================================
+  # PAYMENTS & SETTLEMENTS
+  # ==========================================
   /wallet/topups:
     post:
-      summary: Initialize wallet top-up via Paystack
+      summary: Initialize wallet top-up via Paystack checkout
       security:
         - BearerAuth: []
       tags: [Payments]
@@ -727,6 +1581,7 @@ paths:
           required: true
           schema:
             type: string
+          example: "topup_init_1001"
       requestBody:
         required: true
         content:
@@ -738,14 +1593,89 @@ paths:
                 amount:
                   type: integer
                   description: Amount in kobo
-                  example: 500000
+                  example: 50000000
       responses:
         200:
-          description: Paystack checkout URL and payment reference
+          description: Checkout authorization URL generated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TopupInitiatedResponse'
+              example:
+                status: true
+                message: "Top-up initialized successfully."
+                data:
+                  reference: "TOPUP-672BB1A0F"
+                  authorization_url: "https://checkout.paystack.com/390dfj203jdf"
+                  amount_kobo: 50000000
+
+  /wallet/topups/{reference}/verify:
+    get:
+      summary: Verify Paystack top-up transaction status
+      description: Queries Paystack API to verify transaction settlement and atomic credit to user wallet.
+      security:
+        - BearerAuth: []
+      tags: [Payments]
+      parameters:
+        - name: reference
+          in: path
+          required: true
+          schema:
+            type: string
+          example: "TOPUP-672BB1A0F"
+      responses:
+        200:
+          description: Topup verified and ledger credited
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TopupVerifiedResponse'
+              example:
+                status: true
+                message: "Wallet funded successfully."
+                data:
+                  reference: "TOPUP-672BB1A0F"
+                  amount_kobo: 50000000
+                  status: "success"
+                  available_balance_kobo: 125000000
+        422:
+          description: Payment failed or amount mismatch
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StandardErrorResponse'
+              example:
+                status: false
+                message: "Payment was not successful."
+                error: "PAYMENT_NOT_COMPLETED"
+                error_code: "PAYMENT_NOT_COMPLETED"
 
   /wallet/withdrawals:
+    get:
+      summary: List user withdrawal history
+      security:
+        - BearerAuth: []
+      tags: [Payments]
+      responses:
+        200:
+          description: List of withdrawals
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WithdrawalListResponse'
+              example:
+                status: true
+                message: "Withdrawal history retrieved successfully."
+                data:
+                  - id: 55
+                    amount_kobo: 25000000
+                    status: "completed"
+                    bank_name: "Guaranty Trust Bank"
+                    account_number_masked: "******6789"
+                    created_at: "2026-11-04T10:15:00Z"
     post:
-      summary: Request bank account withdrawal
+      summary: Request bank transfer withdrawal
+      description: Debits user's available ledger balance and queues Paystack transfer to linked bank account.
       security:
         - BearerAuth: []
       tags: [Payments]
@@ -755,6 +1685,7 @@ paths:
           required: true
           schema:
             type: string
+          example: "withdr_req_99"
       requestBody:
         required: true
         content:
@@ -765,25 +1696,77 @@ paths:
               properties:
                 amount:
                   type: integer
-                  description: Amount in kobo
-                  example: 200000
+                  description: Withdrawal amount in kobo
+                  example: 25000000
                 bank_account_id:
                   type: integer
+                  example: 3
       responses:
         200:
-          description: Withdrawal queued for transfer
+          description: Withdrawal queued
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StandardMessageResponse'
+              example:
+                status: true
+                message: "Withdrawal request submitted. Funds will arrive in your bank account shortly."
+
+  /banks:
     get:
-      summary: Withdrawal history
+      summary: List supported commercial banks and fintech institutions
+      description: Returns list of Nigerian banks with Paystack bank codes and NIP routing identifiers.
       security:
         - BearerAuth: []
       tags: [Payments]
       responses:
         200:
-          description: List of withdrawals
+          description: Supported banks list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BanksListResponse'
+              example:
+                status: true
+                message: "Banks list retrieved successfully."
+                data:
+                  - name: "Access Bank"
+                    code: "044"
+                  - name: "Guaranty Trust Bank"
+                    code: "058"
+                  - name: "Zenith Bank"
+                    code: "057"
+                  - name: "OPay"
+                    code: "999992"
+
+  /bank-accounts:
+    get:
+      summary: List user's verified linked bank accounts
+      security:
+        - BearerAuth: []
+      tags: [Payments]
+      responses:
+        200:
+          description: Linked bank accounts
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BankAccountsResponse'
+              example:
+                status: true
+                message: "Bank accounts retrieved successfully."
+                data:
+                  - id: 3
+                    bank_name: "Guaranty Trust Bank"
+                    bank_code: "058"
+                    account_number: "0123456789"
+                    account_name: "CHIDI OKONKWO"
+                    is_verified: true
 
   /bank-accounts/verify:
     post:
       summary: Verify NUBAN bank account with KYC legal name match
+      description: Calls Paystack name inquiry and verifies Jaro-Winkler similarity against user's verified NIN name.
       security:
         - BearerAuth: []
       tags: [Payments]
@@ -793,6 +1776,7 @@ paths:
           required: true
           schema:
             type: string
+          example: "bank_acc_ver_88"
       requestBody:
         required: true
         content:
@@ -807,24 +1791,40 @@ paths:
                 bank_code:
                   type: string
                   example: "058"
+                bank_name:
+                  type: string
+                  example: "Guaranty Trust Bank"
       responses:
         200:
           description: Bank account verified and linked
-
-  /bank-accounts:
-    get:
-      summary: List linked bank accounts
-      security:
-        - BearerAuth: []
-      tags: [Payments]
-      responses:
-        200:
-          description: Array of verified bank accounts
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BankAccountVerifiedResponse'
+              example:
+                status: true
+                message: "Bank account verified and linked successfully."
+                data:
+                  id: 3
+                  account_number: "0123456789"
+                  account_name: "CHIDI OKONKWO"
+                  bank_name: "Guaranty Trust Bank"
+        422:
+          description: Bank name mismatch with verified KYC name
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StandardErrorResponse'
+              example:
+                status: false
+                message: "Bank account name does not match your verified KYC legal name."
+                error: "BANK_NAME_MISMATCH"
+                error_code: "BANK_NAME_MISMATCH"
 
   /webhooks/paystack:
     post:
       summary: Paystack webhook intake endpoint
-      description: Validates HMAC-SHA512 header against PAYSTACK_SECRET_KEY. Credits ledger and guards against replay.
+      description: Validates HMAC-SHA512 header against PAYSTACK_SECRET_KEY, credits ledger idempotently, and guards against replay.
       tags: [Payments]
       parameters:
         - name: x-paystack-signature
@@ -832,250 +1832,54 @@ paths:
           required: true
           schema:
             type: string
+          example: "hmac_sha512_hash_signature"
       responses:
         200:
-          description: Webhook processed
+          description: Webhook received and processed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StandardMessageResponse'
+              example:
+                status: true
+                message: "Webhook received successfully."
 
-  /admin/kyc:
-    get:
-      summary: List KYC verification queue
-      security:
-        - BearerAuth: []
-      tags: [Admin]
-      responses:
-        200:
-          description: List of user KYC records
-
-  /admin/kyc/{id}/nin-photo:
-    get:
-      summary: Stream persisted provider NIN photo with audit logging
-      security:
-        - BearerAuth: []
-      tags: [Admin]
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        200:
-          description: Image binary stream (image/jpeg)
-
-  /admin/ledger/propose-adjustment:
-    post:
-      summary: Propose manual ledger adjustment (Maker step)
-      security:
-        - BearerAuth: []
-      tags: [Admin Maker-Checker]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [target_user_id, amount, reason, direction]
-              properties:
-                target_user_id:
-                  type: integer
-                amount:
-                  type: integer
-                direction:
-                  type: string
-                  enum: [credit, debit]
-                reason:
-                  type: string
-      responses:
-        201:
-          description: Adjustment proposed awaiting second admin approval
-
-  /admin/ledger/adjustments/{id}/approve:
-    post:
-      summary: Approve manual adjustment (Checker step)
-      description: Rejects approval if requested by same admin (403 SELF_APPROVAL_PROHIBITED).
-      security:
-        - BearerAuth: []
-      tags: [Admin Maker-Checker]
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        200:
-          description: Adjustment approved and posted to ledger
-
-  /admin/ledger/reconcile:
-    get:
-      summary: Run ledger parity and wallet balance invariant reconciliation
-      security:
-        - BearerAuth: []
-      tags: [Admin]
-      responses:
-        200:
-          description: Reconciliation audit results
-
-  /admin/disputes:
-    get:
-      summary: List open disputes
-      security:
-        - BearerAuth: []
-      tags: [Admin Disputes]
-      responses:
-        200:
-          description: List of disputes
-
-  /admin/disputes/{id}/resolve:
-    post:
-      summary: Resolve dispute with full or split settlement
-      security:
-        - BearerAuth: []
-      tags: [Admin Disputes]
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [resolution, resolution_notes]
-              properties:
-                resolution:
-                  type: string
-                  enum: [buyer_refund, seller_release, split]
-                buyer_split_amount:
-                  type: integer
-                seller_split_amount:
-                  type: integer
-                resolution_notes:
-                  type: string
-      responses:
-        200:
-          description: Dispute resolved and ledger settled
-
-  /admin/auctions/{id}/kill-stream:
-    post:
-      summary: Emergency live stream kill-switch
-      security:
-        - BearerAuth: []
-      tags: [Admin Moderation]
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [reason]
-              properties:
-                reason:
-                  type: string
-      responses:
-        200:
-          description: Live session killed
-
-  /admin/users/{id}/strike:
-    post:
-      summary: Issue strike to user
-      security:
-        - BearerAuth: []
-      tags: [Admin Moderation]
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [reason, note]
-              properties:
-                reason:
-                  type: string
-                note:
-                  type: string
-      responses:
-        200:
-          description: Strike issued
-
-  /admin/users/{id}/suspend:
-    post:
-      summary: Suspend user account temporarily
-      security:
-        - BearerAuth: []
-      tags: [Admin Moderation]
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [duration_days, reason]
-              properties:
-                duration_days:
-                  type: integer
-                reason:
-                  type: string
-      responses:
-        200:
-          description: Account suspended
-
-  /admin/users/{id}/ban:
-    post:
-      summary: Permanently ban user account
-      security:
-        - BearerAuth: []
-      tags: [Admin Moderation]
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [reason]
-              properties:
-                reason:
-                  type: string
-      responses:
-        200:
+  # ==========================================
+  # TERMS & CONDITIONS
+  # ==========================================
   /terms:
     get:
       summary: List all latest active terms across categories
       tags: [Terms & Conditions]
       responses:
         200:
-          description: Active terms retrieved successfully
+          description: Active terms and conditions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TermsListResponse'
+              example:
+                status: true
+                message: "Active terms and conditions retrieved successfully."
+                data:
+                  - id: 1
+                    title: "LiveBids General Terms of Service"
+                    slug: "livebids-general-terms-of-service"
+                    type: "general"
+                    version: "1.0"
+                    is_active: true
+                    is_required: true
+                  - id: 2
+                    title: "Live Bidding & Escrow Agreement"
+                    slug: "live-bidding-escrow-agreement"
+                    type: "bidding_escrow"
+                    version: "1.0"
+                    is_active: true
+                    is_required: true
 
   /terms/pending:
     get:
-      summary: View all required active terms the authenticated user has not yet accepted
+      summary: View active required terms the authenticated user has not yet consented to
       security:
         - BearerAuth: []
       tags: [Terms & Conditions]
@@ -1085,23 +1889,53 @@ paths:
           required: false
           schema:
             type: string
+            enum: [general, bidding_escrow, seller_agreement, privacy_policy, pickup_delivery]
+          example: "bidding_escrow"
       responses:
         200:
-          description: Pending terms list
+          description: Pending terms requiring user consent
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TermsListResponse'
+              example:
+                status: true
+                message: "Pending terms retrieved successfully."
+                data:
+                  - id: 2
+                    title: "Live Bidding & Escrow Agreement"
+                    type: "bidding_escrow"
+                    version: "1.0"
+                    is_required: true
 
   /terms/my-acceptances:
     get:
-      summary: View authenticated user acceptance history
+      summary: View authenticated user's consent and acceptance history
       security:
         - BearerAuth: []
       tags: [Terms & Conditions]
       responses:
         200:
-          description: Acceptance history retrieved
+          description: User acceptance audit history
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TermsAcceptanceHistoryResponse'
+              example:
+                status: true
+                message: "User terms acceptance history retrieved successfully."
+                data:
+                  - id: 14
+                    terms_id: 1
+                    terms_title: "LiveBids General Terms of Service"
+                    terms_version: "1.0"
+                    ip_address: "197.210.65.12"
+                    user_agent: "LiveBids-Android/1.0.0"
+                    accepted_at: "2026-11-06T18:05:00Z"
 
   /terms/accept:
     post:
-      summary: Record user acceptance/consent for a terms version
+      summary: Record user consent/acceptance of a terms version
       security:
         - BearerAuth: []
       tags: [Terms & Conditions]
@@ -1115,13 +1949,27 @@ paths:
               properties:
                 terms_id:
                   type: integer
+                  example: 2
       responses:
         200:
-          description: Terms accepted successfully
+          description: Consent recorded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TermsAcceptedResponse'
+              example:
+                status: true
+                message: "Terms and conditions accepted successfully."
+                data:
+                  id: 15
+                  terms_id: 2
+                  terms_type: "bidding_escrow"
+                  terms_version: "1.0"
+                  accepted_at: "2026-11-06T18:40:00Z"
 
   /terms/{type}:
     get:
-      summary: Read latest active version for a specific terms type
+      summary: Read latest active version of a specific terms type
       tags: [Terms & Conditions]
       parameters:
         - name: type
@@ -1130,15 +1978,39 @@ paths:
           schema:
             type: string
             enum: [general, bidding_escrow, seller_agreement, privacy_policy, pickup_delivery]
+          example: "general"
       responses:
         200:
-          description: Terms document retrieved
+          description: Terms document
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TermsSingleResponse'
+              example:
+                status: true
+                message: "Terms and conditions retrieved successfully."
+                data:
+                  id: 1
+                  title: "LiveBids General Terms of Service"
+                  type: "general"
+                  version: "1.0"
+                  content: "# LiveBids General Terms\n\n1. Introduction\nWelcome to LiveBids..."
+                  is_required: true
         404:
-          description: No active terms found for type
+          description: No active terms for type
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StandardErrorResponse'
+              example:
+                status: false
+                message: "No active terms found for type: invalid_type"
+                error: "TERMS_NOT_FOUND"
+                error_code: "TERMS_NOT_FOUND"
 
   /terms/{type}/versions:
     get:
-      summary: View version history of a specific terms type
+      summary: View historical versions and drafts of a terms type
       tags: [Terms & Conditions]
       parameters:
         - name: type
@@ -1146,40 +2018,477 @@ paths:
           required: true
           schema:
             type: string
+          example: "general"
       responses:
         200:
-          description: Version history retrieved
+          description: Version history
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TermsListResponse'
+              example:
+                status: true
+                message: "Terms version history retrieved successfully."
+                data:
+                  - id: 5
+                    version: "2.0"
+                    title: "LiveBids General Terms v2.0 (Draft)"
+                    is_active: false
+                  - id: 1
+                    version: "1.0"
+                    title: "LiveBids General Terms of Service"
+                    is_active: true
+
+  # ==========================================
+  # ADMIN & BACK-OFFICE
+  # ==========================================
+  /admin/audit-logs:
+    get:
+      summary: View administrative audit log trail
+      security:
+        - BearerAuth: []
+      tags: [Admin]
+      parameters:
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 1
+        - name: per_page
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 25
+      responses:
+        200:
+          description: Paginated admin audit trail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminAuditLogsResponse'
+              example:
+                status: true
+                message: "Admin audit logs retrieved successfully."
+                data:
+                  - id: 201
+                    action: "manual_adjustment_proposed"
+                    target_type: "ledger_wallet"
+                    target_id: 12
+                    admin:
+                      id: "9f8e7d6c-5b4a-3210-9876-543210abcdef"
+                      name: "Super Admin"
+                    created_at: "2026-11-06T15:00:00Z"
+                pagination:
+                  current_page: 1
+                  last_page: 5
+                  per_page: 25
+                  total: 112
+
+  /admin/kyc:
+    get:
+      summary: List KYC review queue
+      security:
+        - BearerAuth: []
+      tags: [Admin]
+      responses:
+        200:
+          description: KYC queue
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KycQueueResponse'
+              example:
+                status: true
+                message: "KYC queue retrieved successfully."
+                data:
+                  - id: 45
+                    user_id: "8f6b158b-9d41-477d-9dc6-b4d081fdfd8e"
+                    full_name: "Chidi Chukwudi Okonkwo"
+                    nin_masked: "123*****901"
+                    status: "verified"
+                    submitted_at: "2026-11-06T18:00:00Z"
+
+  /admin/kyc/{id}/nin-photo:
+    get:
+      summary: Stream stored provider NIN photo
+      security:
+        - BearerAuth: []
+      tags: [Admin]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+          example: 45
+      responses:
+        200:
+          description: Decoded image stream
+          content:
+            image/jpeg:
+              schema:
+                type: string
+                format: binary
+
+  /admin/ledger/reconcile:
+    get:
+      summary: Run real-time ledger parity and invariant audit
+      security:
+        - BearerAuth: []
+      tags: [Admin]
+      responses:
+        200:
+          description: Invariant check results
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LedgerReconciliationResponse'
+              example:
+                status: true
+                message: "Ledger reconciliation completed. All invariants intact."
+                data:
+                  is_balanced: true
+                  total_debits_kobo: 5400000000
+                  total_credits_kobo: 5400000000
+                  discrepancy_kobo: 0
+                  checked_at: "2026-11-06T18:48:00Z"
+
+  /admin/ledger/propose-adjustment:
+    post:
+      summary: Propose manual ledger adjustment (Maker step)
+      security:
+        - BearerAuth: []
+      tags: [Admin]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [target_user_id, account, direction, amount_kobo, reason]
+              properties:
+                target_user_id:
+                  type: integer
+                  example: 12
+                account:
+                  type: string
+                  enum: [available, locked]
+                  example: "available"
+                direction:
+                  type: string
+                  enum: [credit, debit]
+                  example: "credit"
+                amount_kobo:
+                  type: integer
+                  example: 5000000
+                reason:
+                  type: string
+                  example: "Customer refund compensation per ticket #8892"
+      responses:
+        201:
+          description: Adjustment proposed; pending second admin approval
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StandardMessageResponse'
+              example:
+                status: true
+                message: "Manual adjustment proposed. Requires approval by a second administrator."
+
+  /admin/ledger/adjustments/{id}/approve:
+    post:
+      summary: Approve and execute manual ledger adjustment (Checker step)
+      description: Enforces dual-approver constraint. The requesting maker admin cannot approve their own adjustment.
+      security:
+        - BearerAuth: []
+      tags: [Admin]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+          example: 8
+      responses:
+        200:
+          description: Adjustment executed and posted to ledger
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StandardMessageResponse'
+              example:
+                status: true
+                message: "Manual adjustment approved and posted to ledger."
+
+  /admin/disputes:
+    get:
+      summary: List disputes
+      security:
+        - BearerAuth: []
+      tags: [Admin]
+      responses:
+        200:
+          description: List of disputes
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DisputesListResponse'
+              example:
+                status: true
+                message: "Disputes retrieved successfully."
+                data:
+                  - id: 18
+                    order_id: 280
+                    opened_by_id: "8f6b158b-9d41-477d-9dc6-b4d081fdfd8e"
+                    reason: "item_not_as_described"
+                    status: "open"
+                    created_at: "2026-11-06T12:00:00Z"
+
+  /admin/disputes/{id}/resolve:
+    post:
+      summary: Resolve dispute with full or split escrow settlement
+      security:
+        - BearerAuth: []
+      tags: [Admin]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+          example: 18
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [resolution, resolution_notes]
+              properties:
+                resolution:
+                  type: string
+                  enum: [buyer_refund, seller_release, split]
+                  example: "buyer_refund"
+                buyer_split_amount:
+                  type: integer
+                  nullable: true
+                seller_split_amount:
+                  type: integer
+                  nullable: true
+                resolution_notes:
+                  type: string
+                  example: "Buyer provided proof of damage before handover. Full refund granted."
+      responses:
+        200:
+          description: Dispute resolved and ledger settled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StandardMessageResponse'
+              example:
+                status: true
+                message: "Dispute resolved and ledger settled successfully."
+
+  /admin/auctions/{id}/kill-stream:
+    post:
+      summary: Emergency live stream kill-switch
+      security:
+        - BearerAuth: []
+      tags: [Admin]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+          example: 102
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason:
+                  type: string
+                  example: "Violation of community standards (counterfeit goods displayed)."
+      responses:
+        200:
+          description: Live stream killed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StandardMessageResponse'
+              example:
+                status: true
+                message: "Live stream terminated by moderation team."
+
+  /admin/users/{id}/strike:
+    post:
+      summary: Issue disciplinary strike to user account
+      security:
+        - BearerAuth: []
+      tags: [Admin]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+          example: 12
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason, note]
+              properties:
+                reason:
+                  type: string
+                  example: "No-show at agreed pickup location."
+                note:
+                  type: string
+                  example: "First warning issued to user."
+      responses:
+        200:
+          description: Strike recorded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StandardMessageResponse'
+              example:
+                status: true
+                message: "Strike issued successfully. User currently has 1 strike."
+
+  /admin/users/{id}/suspend:
+    post:
+      summary: Suspend user account temporarily
+      security:
+        - BearerAuth: []
+      tags: [Admin]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+          example: 12
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [duration_days, reason]
+              properties:
+                duration_days:
+                  type: integer
+                  example: 14
+                reason:
+                  type: string
+                  example: "Repeated shill bidding activity detected."
+      responses:
+        200:
+          description: User suspended
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StandardMessageResponse'
+              example:
+                status: true
+                message: "User account suspended for 14 days."
+
+  /admin/users/{id}/ban:
+    post:
+      summary: Permanently ban user account
+      security:
+        - BearerAuth: []
+      tags: [Admin]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+          example: 12
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason:
+                  type: string
+                  example: "Payment fraud and chargeback abuse."
+      responses:
+        200:
+          description: User banned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StandardMessageResponse'
+              example:
+                status: true
+                message: "User account permanently banned."
 
   /admin/terms:
     get:
-      summary: Paginated list of all terms versions
+      summary: Paginated list of terms with filtering
       security:
         - BearerAuth: []
-      tags: [Admin Terms]
+      tags: [Admin]
       parameters:
         - name: type
           in: query
           required: false
           schema:
             type: string
+          example: "seller_agreement"
         - name: is_active
           in: query
           required: false
           schema:
             type: boolean
+          example: true
         - name: is_required
           in: query
           required: false
           schema:
             type: boolean
+          example: true
       responses:
         200:
-          description: Terms list retrieved
+          description: Paginated terms documents
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminTermsListResponse'
+              example:
+                status: true
+                message: "Terms and conditions retrieved successfully."
+                data:
+                  - id: 3
+                    title: "Seller & Auctioneer Agreement"
+                    type: "seller_agreement"
+                    version: "1.0"
+                    is_active: true
+                    is_required: true
+                pagination:
+                  current_page: 1
+                  last_page: 1
+                  per_page: 15
+                  total: 5
     post:
-      summary: Create new terms draft or new version
+      summary: Create new terms draft or major version
       security:
         - BearerAuth: []
-      tags: [Admin Terms]
+      tags: [Admin]
       requestBody:
         required: true
         content:
@@ -1190,52 +2499,90 @@ paths:
               properties:
                 title:
                   type: string
+                  example: "Seller & Auctioneer Agreement v2.0"
                 type:
                   type: string
                   enum: [general, bidding_escrow, seller_agreement, privacy_policy, pickup_delivery]
+                  example: "seller_agreement"
                 version:
                   type: string
+                  example: "2.0"
                 content:
                   type: string
+                  example: "# Seller Agreement v2.0\n\nUpdated rules for 2026..."
                 summary_of_changes:
                   type: string
+                  example: "Revised payout timelines and anti-shill penalties."
                 is_active:
                   type: boolean
+                  default: false
                 is_required:
                   type: boolean
-                effective_date:
-                  type: string
-                  format: date-time
+                  default: true
       responses:
         201:
           description: Terms draft created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TermsSingleResponse'
+              example:
+                status: true
+                message: "Terms and conditions draft created successfully."
+                data:
+                  id: 6
+                  title: "Seller & Auctioneer Agreement v2.0"
+                  type: "seller_agreement"
+                  version: "2.0"
+                  is_active: false
+                  is_required: true
 
   /admin/terms/{id}:
     get:
       summary: View terms details with compliance metrics
       security:
         - BearerAuth: []
-      tags: [Admin Terms]
+      tags: [Admin]
       parameters:
         - name: id
           in: path
           required: true
           schema:
             type: integer
+          example: 1
       responses:
         200:
           description: Terms details and metrics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminTermsDetailResponse'
+              example:
+                status: true
+                message: "Terms details retrieved successfully."
+                data:
+                  id: 1
+                  title: "LiveBids General Terms of Service"
+                  type: "general"
+                  version: "1.0"
+                  is_active: true
+                  is_required: true
+                  metrics:
+                    total_accepted: 1420
+                    total_users: 1500
+                    compliance_percentage: 94.67
     put:
       summary: Update draft terms metadata or content
       security:
         - BearerAuth: []
-      tags: [Admin Terms]
+      tags: [Admin]
       parameters:
         - name: id
           in: path
           required: true
           schema:
             type: integer
+          example: 6
       requestBody:
         required: true
         content:
@@ -1245,47 +2592,68 @@ paths:
               properties:
                 title:
                   type: string
+                  example: "Seller Agreement v2.0 Revised"
                 content:
                   type: string
+                  example: "# Revised content..."
                 summary_of_changes:
                   type: string
-                is_required:
-                  type: boolean
-                effective_date:
-                  type: string
-                  format: date-time
+                  example: "Clarified arbitration clause."
       responses:
         200:
           description: Terms updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TermsSingleResponse'
+              example:
+                status: true
+                message: "Terms draft updated successfully."
+                data:
+                  id: 6
+                  title: "Seller Agreement v2.0 Revised"
+                  summary_of_changes: "Clarified arbitration clause."
 
   /admin/terms/{id}/publish:
     post:
-      summary: Publish and activate terms version (archives older version of same type)
+      summary: Publish and activate terms version (archives previous active version of same type)
       security:
         - BearerAuth: []
-      tags: [Admin Terms]
+      tags: [Admin]
       parameters:
         - name: id
           in: path
           required: true
           schema:
             type: integer
+          example: 6
       responses:
         200:
           description: Version published and activated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TermsSingleResponse'
+              example:
+                status: true
+                message: "Terms version published and activated successfully. Previous version deactivated."
+                data:
+                  id: 6
+                  is_active: true
 
   /admin/terms/{id}/enforce:
     post:
       summary: Toggle mandatory user acceptance enforcement
       security:
         - BearerAuth: []
-      tags: [Admin Terms]
+      tags: [Admin]
       parameters:
         - name: id
           in: path
           required: true
           schema:
             type: integer
+          example: 6
       requestBody:
         required: true
         content:
@@ -1296,26 +2664,65 @@ paths:
               properties:
                 is_required:
                   type: boolean
+                  example: false
       responses:
         200:
           description: Enforcement status updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TermsSingleResponse'
+              example:
+                status: true
+                message: "Terms enforcement updated successfully."
+                data:
+                  id: 6
+                  is_required: false
 
   /admin/terms/{id}/audit-log:
     get:
       summary: Paginated acceptance audit log for a terms version
       security:
         - BearerAuth: []
-      tags: [Admin Terms]
+      tags: [Admin]
       parameters:
         - name: id
           in: path
           required: true
           schema:
             type: integer
+          example: 1
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 1
       responses:
         200:
-          description: Acceptance audit log
+          description: User acceptance log
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminTermsAuditLogResponse'
+              example:
+                status: true
+                message: "Audit log retrieved successfully."
+                data:
+                  - id: 1
+                    user_id: "8f6b158b-9d41-477d-9dc6-b4d081fdfd8e"
+                    ip_address: "197.210.65.12"
+                    user_agent: "LiveBids-Android/1.0.0"
+                    accepted_at: "2026-11-06T18:05:00Z"
+                pagination:
+                  current_page: 1
+                  last_page: 20
+                  per_page: 25
+                  total: 500
 
+# ==========================================
+# COMPONENTS & SCHEMAS
+# ==========================================
 components:
   securitySchemes:
     BearerAuth:
@@ -1323,3 +2730,896 @@ components:
       scheme: bearer
       bearerFormat: Sanctum
 
+  schemas:
+    # --- Standard Base Response Envelopes ---
+    StandardMessageResponse:
+      type: object
+      required: [status, message]
+      properties:
+        status:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: "Action performed successfully."
+
+    StandardErrorResponse:
+      type: object
+      required: [status, message, error, error_code]
+      properties:
+        status:
+          type: boolean
+          example: false
+        message:
+          type: string
+          example: "An error occurred."
+        error:
+          type: string
+          example: "ERROR_IDENTIFIER"
+        error_code:
+          type: string
+          example: "ERROR_IDENTIFIER"
+        incident_id:
+          type: string
+          nullable: true
+          example: "ERR-LIVE-ABC12345"
+
+    ValidationErrorResponse:
+      type: object
+      required: [status, message, error, error_code, errors]
+      properties:
+        status:
+          type: boolean
+          example: false
+        message:
+          type: string
+          example: "The given data was invalid."
+        error:
+          type: string
+          example: "VALIDATION_ERROR"
+        error_code:
+          type: string
+          example: "VALIDATION_ERROR"
+        errors:
+          type: object
+          additionalProperties:
+            type: array
+            items:
+              type: string
+
+    PaginationMetadata:
+      type: object
+      required: [current_page, last_page, per_page, total]
+      properties:
+        current_page:
+          type: integer
+          example: 1
+        last_page:
+          type: integer
+          example: 5
+        per_page:
+          type: integer
+          example: 15
+        total:
+          type: integer
+          example: 75
+
+    # --- Domain Model Schemas ---
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: "8f6b158b-9d41-477d-9dc6-b4d081fdfd8e"
+        identifier:
+          type: string
+          format: uuid
+          example: "8f6b158b-9d41-477d-9dc6-b4d081fdfd8e"
+        phone:
+          type: string
+          example: "+2348012345678"
+        name:
+          type: string
+          example: "Chidi Okonkwo"
+        first_name:
+          type: string
+          example: "Chidi"
+        last_name:
+          type: string
+          example: "Okonkwo"
+        email:
+          type: string
+          format: email
+          nullable: true
+          example: "chidi.okonkwo@example.com"
+        date_of_birth:
+          type: string
+          format: date
+          example: "1998-05-15"
+        is_onboarded:
+          type: boolean
+          example: true
+        is_kyc_verified:
+          type: boolean
+          example: false
+        pickup_area:
+          type: string
+          nullable: true
+          example: "Ikeja"
+        rating:
+          type: number
+          format: float
+          example: 4.85
+        strikes_count:
+          type: integer
+          example: 0
+
+    # --- Specific Typed Success Responses ---
+    OnboardingInitiatedResponse:
+      type: object
+      required: [status, message, data]
+      properties:
+        status:
+          type: boolean
+          example: true
+        message:
+          type: string
+        data:
+          type: object
+          properties:
+            identifier:
+              type: string
+              format: uuid
+            status:
+              type: string
+              example: "PENDING_OTP"
+            expires_in_seconds:
+              type: integer
+              example: 600
+
+    OnboardingOtpVerifiedResponse:
+      type: object
+      required: [status, message, data]
+      properties:
+        status:
+          type: boolean
+          example: true
+        message:
+          type: string
+        data:
+          type: object
+          properties:
+            identifier:
+              type: string
+              format: uuid
+            status:
+              type: string
+              example: "PENDING_PROFILE"
+
+    ProfileSetupResponse:
+      type: object
+      required: [status, message, data]
+      properties:
+        status:
+          type: boolean
+          example: true
+        message:
+          type: string
+        data:
+          type: object
+          properties:
+            user:
+              $ref: '#/components/schemas/User'
+            token:
+              type: string
+            status:
+              type: string
+              example: "ONBOARDING_COMPLETE"
+
+    CountriesResponse:
+      type: object
+      required: [status, message, data]
+      properties:
+        status:
+          type: boolean
+          example: true
+        message:
+          type: string
+        data:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: integer
+              name:
+                type: string
+              iso2:
+                type: string
+              iso3:
+                type: string
+              phone_code:
+                type: string
+              currency:
+                type: string
+
+    StatesResponse:
+      type: object
+      required: [status, message, data]
+      properties:
+        status:
+          type: boolean
+          example: true
+        message:
+          type: string
+        data:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: integer
+              country_id:
+                type: integer
+              name:
+                type: string
+              code:
+                type: string
+
+    CitiesResponse:
+      type: object
+      required: [status, message, data]
+      properties:
+        status:
+          type: boolean
+          example: true
+        message:
+          type: string
+        data:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: integer
+              state_id:
+                type: integer
+              name:
+                type: string
+
+    OtpRequestedResponse:
+      type: object
+      required: [status, message, data]
+      properties:
+        status:
+          type: boolean
+          example: true
+        message:
+          type: string
+        data:
+          type: object
+          properties:
+            expires_at:
+              type: string
+              format: date-time
+
+    AuthTokenResponse:
+      type: object
+      required: [status, message, data]
+      properties:
+        status:
+          type: boolean
+          example: true
+        message:
+          type: string
+        data:
+          type: object
+          properties:
+            token:
+              type: string
+            token_type:
+              type: string
+              example: "Bearer"
+            user:
+              $ref: '#/components/schemas/User'
+
+    UserProfileResponse:
+      type: object
+      required: [status, message, data]
+      properties:
+        status:
+          type: boolean
+          example: true
+        message:
+          type: string
+        data:
+          type: object
+          properties:
+            user:
+              $ref: '#/components/schemas/User'
+
+    PublicProfileResponse:
+      type: object
+      required: [status, message, data]
+      properties:
+        status:
+          type: boolean
+          example: true
+        message:
+          type: string
+        data:
+          type: object
+          properties:
+            id:
+              type: string
+              format: uuid
+            identifier:
+              type: string
+              format: uuid
+            name:
+              type: string
+            avatar_url:
+              type: string
+              nullable: true
+            rating:
+              type: number
+            review_count:
+              type: integer
+            strikes_count:
+              type: integer
+            pickup_area:
+              type: string
+            auctions_completed:
+              type: integer
+            member_since:
+              type: string
+              format: date-time
+
+    KycSubmitResponse:
+      type: object
+      required: [status, message, data]
+      properties:
+        status:
+          type: boolean
+          example: true
+        message:
+          type: string
+        data:
+          type: object
+          properties:
+            kyc_status:
+              type: string
+            verified_name:
+              type: string
+            nin_masked:
+              type: string
+            verified_at:
+              type: string
+              format: date-time
+
+    KycStatusResponse:
+      type: object
+      required: [status, message, data]
+      properties:
+        status:
+          type: boolean
+          example: true
+        message:
+          type: string
+        data:
+          type: object
+          properties:
+            is_kyc_verified:
+              type: boolean
+            status:
+              type: string
+            submitted_at:
+              type: string
+              format: date-time
+              nullable: true
+            rejection_reason:
+              type: string
+              nullable: true
+
+    CategoriesResponse:
+      type: object
+      required: [status, message, data]
+      properties:
+        status:
+          type: boolean
+          example: true
+        message:
+          type: string
+        data:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: integer
+              name:
+                type: string
+              slug:
+                type: string
+              icon_url:
+                type: string
+              auctions_count:
+                type: integer
+
+    UpcomingAuctionsResponse:
+      type: object
+      required: [status, message, data, pagination]
+      properties:
+        status:
+          type: boolean
+          example: true
+        message:
+          type: string
+        data:
+          type: array
+          items:
+            type: object
+        pagination:
+          $ref: '#/components/schemas/PaginationMetadata'
+
+    LiveAuctionsResponse:
+      type: object
+      required: [status, message, data]
+      properties:
+        status:
+          type: boolean
+          example: true
+        message:
+          type: string
+        data:
+          type: array
+          items:
+            type: object
+
+    ReminderToggledResponse:
+      type: object
+      required: [status, message, data]
+      properties:
+        status:
+          type: boolean
+          example: true
+        message:
+          type: string
+        data:
+          type: object
+          properties:
+            auction_id:
+              type: integer
+            has_reminder:
+              type: boolean
+
+    AuctionDetailResponse:
+      type: object
+      required: [status, message, data]
+      properties:
+        status:
+          type: boolean
+          example: true
+        message:
+          type: string
+        data:
+          type: object
+
+    SelectWinnerResponse:
+      type: object
+      required: [status, message, data]
+      properties:
+        status:
+          type: boolean
+          example: true
+        message:
+          type: string
+        data:
+          type: object
+
+    LiveStreamTokenResponse:
+      type: object
+      required: [status, message, data]
+      properties:
+        status:
+          type: boolean
+          example: true
+        message:
+          type: string
+        data:
+          type: object
+          properties:
+            room_name:
+              type: string
+            token:
+              type: string
+            server_url:
+              type: string
+            duration_seconds:
+              type: integer
+
+    BidLeaderboardResponse:
+      type: object
+      required: [status, message, data]
+      properties:
+        status:
+          type: boolean
+          example: true
+        message:
+          type: string
+        data:
+          type: object
+          properties:
+            auction_id:
+              type: integer
+            leaderboard:
+              type: array
+              items:
+                type: object
+                properties:
+                  rank:
+                    type: integer
+                  bid_id:
+                    type: integer
+                  amount_kobo:
+                    type: integer
+                  bidder_masked:
+                    type: string
+                  placed_at:
+                    type: string
+
+    PlaceBidResponse:
+      type: object
+      required: [status, message, data]
+      properties:
+        status:
+          type: boolean
+          example: true
+        message:
+          type: string
+        data:
+          type: object
+
+    OrdersListResponse:
+      type: object
+      required: [status, message, data, pagination]
+      properties:
+        status:
+          type: boolean
+          example: true
+        message:
+          type: string
+        data:
+          type: array
+          items:
+            type: object
+        pagination:
+          $ref: '#/components/schemas/PaginationMetadata'
+
+    OrderDetailResponse:
+      type: object
+      required: [status, message, data]
+      properties:
+        status:
+          type: boolean
+          example: true
+        message:
+          type: string
+        data:
+          type: object
+
+    OrderCompletedResponse:
+      type: object
+      required: [status, message, data]
+      properties:
+        status:
+          type: boolean
+          example: true
+        message:
+          type: string
+        data:
+          type: object
+
+    OrderMessagesResponse:
+      type: object
+      required: [status, message, data]
+      properties:
+        status:
+          type: boolean
+          example: true
+        message:
+          type: string
+        data:
+          type: array
+          items:
+            type: object
+
+    WalletBalanceResponse:
+      type: object
+      required: [status, message, data]
+      properties:
+        status:
+          type: boolean
+          example: true
+        message:
+          type: string
+        data:
+          type: object
+          properties:
+            available_balance_kobo:
+              type: integer
+            locked_balance_kobo:
+              type: integer
+            total_balance_kobo:
+              type: integer
+            currency:
+              type: string
+              example: "NGN"
+
+    WalletTransactionsResponse:
+      type: object
+      required: [status, message, data, pagination]
+      properties:
+        status:
+          type: boolean
+          example: true
+        message:
+          type: string
+        data:
+          type: array
+          items:
+            type: object
+        pagination:
+          $ref: '#/components/schemas/PaginationMetadata'
+
+    TopupInitiatedResponse:
+      type: object
+      required: [status, message, data]
+      properties:
+        status:
+          type: boolean
+          example: true
+        message:
+          type: string
+        data:
+          type: object
+          properties:
+            reference:
+              type: string
+            authorization_url:
+              type: string
+            amount_kobo:
+              type: integer
+
+    TopupVerifiedResponse:
+      type: object
+      required: [status, message, data]
+      properties:
+        status:
+          type: boolean
+          example: true
+        message:
+          type: string
+        data:
+          type: object
+          properties:
+            reference:
+              type: string
+            amount_kobo:
+              type: integer
+            status:
+              type: string
+            available_balance_kobo:
+              type: integer
+
+    WithdrawalListResponse:
+      type: object
+      required: [status, message, data]
+      properties:
+        status:
+          type: boolean
+          example: true
+        message:
+          type: string
+        data:
+          type: array
+          items:
+            type: object
+
+    BanksListResponse:
+      type: object
+      required: [status, message, data]
+      properties:
+        status:
+          type: boolean
+          example: true
+        message:
+          type: string
+        data:
+          type: array
+          items:
+            type: object
+            properties:
+              name:
+                type: string
+              code:
+                type: string
+
+    BankAccountsResponse:
+      type: object
+      required: [status, message, data]
+      properties:
+        status:
+          type: boolean
+          example: true
+        message:
+          type: string
+        data:
+          type: array
+          items:
+            type: object
+
+    BankAccountVerifiedResponse:
+      type: object
+      required: [status, message, data]
+      properties:
+        status:
+          type: boolean
+          example: true
+        message:
+          type: string
+        data:
+          type: object
+
+    TermsListResponse:
+      type: object
+      required: [status, message, data]
+      properties:
+        status:
+          type: boolean
+          example: true
+        message:
+          type: string
+        data:
+          type: array
+          items:
+            type: object
+
+    TermsSingleResponse:
+      type: object
+      required: [status, message, data]
+      properties:
+        status:
+          type: boolean
+          example: true
+        message:
+          type: string
+        data:
+          type: object
+
+    TermsAcceptanceHistoryResponse:
+      type: object
+      required: [status, message, data]
+      properties:
+        status:
+          type: boolean
+          example: true
+        message:
+          type: string
+        data:
+          type: array
+          items:
+            type: object
+
+    TermsAcceptedResponse:
+      type: object
+      required: [status, message, data]
+      properties:
+        status:
+          type: boolean
+          example: true
+        message:
+          type: string
+        data:
+          type: object
+
+    AdminAuditLogsResponse:
+      type: object
+      required: [status, message, data, pagination]
+      properties:
+        status:
+          type: boolean
+          example: true
+        message:
+          type: string
+        data:
+          type: array
+          items:
+            type: object
+        pagination:
+          $ref: '#/components/schemas/PaginationMetadata'
+
+    KycQueueResponse:
+      type: object
+      required: [status, message, data]
+      properties:
+        status:
+          type: boolean
+          example: true
+        message:
+          type: string
+        data:
+          type: array
+          items:
+            type: object
+
+    LedgerReconciliationResponse:
+      type: object
+      required: [status, message, data]
+      properties:
+        status:
+          type: boolean
+          example: true
+        message:
+          type: string
+        data:
+          type: object
+
+    DisputesListResponse:
+      type: object
+      required: [status, message, data]
+      properties:
+        status:
+          type: boolean
+          example: true
+        message:
+          type: string
+        data:
+          type: array
+          items:
+            type: object
+
+    AdminTermsListResponse:
+      type: object
+      required: [status, message, data, pagination]
+      properties:
+        status:
+          type: boolean
+          example: true
+        message:
+          type: string
+        data:
+          type: array
+          items:
+            type: object
+        pagination:
+          $ref: '#/components/schemas/PaginationMetadata'
+
+    AdminTermsDetailResponse:
+      type: object
+      required: [status, message, data]
+      properties:
+        status:
+          type: boolean
+          example: true
+        message:
+          type: string
+        data:
+          type: object
+
+    AdminTermsAuditLogResponse:
+      type: object
+      required: [status, message, data, pagination]
+      properties:
+        status:
+          type: boolean
+          example: true
+        message:
+          type: string
+        data:
+          type: array
+          items:
+            type: object
+        pagination:
+          $ref: '#/components/schemas/PaginationMetadata'
