@@ -27,7 +27,8 @@ class OnboardingService
         protected NotificationDispatcher $notifications,
         protected LedgerService $ledgerService,
         protected LocationService $locationService,
-        protected TermsService $termsService
+        protected TermsService $termsService,
+        protected EmailVerificationService $emailVerificationService
     ) {}
 
     /**
@@ -66,7 +67,7 @@ class OnboardingService
                 'identifier' => $existingRequest->identifier,
                 'status' => 'PENDING_PROFILE',
                 'expires_in_seconds' => $existingRequest->expires_at->diffInSeconds(now()),
-                'message' => 'Phone already verified. Please complete your profile and pickup address.',
+                'message' => 'Phone already verified. Please complete your profile.',
             ];
         }
 
@@ -103,7 +104,7 @@ class OnboardingService
         }
 
         OtpCode::create([
-            'phone' => $normalizedPhone,
+            'identifier' => $normalizedPhone,
             'code_hash' => Hash::make($code),
             'purpose' => OtpPurpose::Login,
             'attempts' => 0,
@@ -152,7 +153,7 @@ class OnboardingService
         }
 
         // Verify OTP against OtpCode table
-        $otp = OtpCode::where('phone', $onboardingRequest->phone)
+        $otp = OtpCode::where('identifier', $onboardingRequest->phone)
             ->whereNull('used_at')
             ->latest('id')
             ->first();
@@ -186,7 +187,88 @@ class OnboardingService
         return [
             'identifier' => $onboardingRequest->identifier,
             'status' => 'PENDING_PROFILE',
-            'message' => 'Phone number verified successfully. Please complete your profile and pickup address.',
+            'message' => 'Phone number verified successfully. Please complete your profile.',
+        ];
+    }
+
+    /**
+     * Resend phone verification OTP for an active onboarding request.
+     *
+     * @throws BusinessRuleException
+     */
+    public function resendOnboardingOtp(string $identifier): array
+    {
+        $onboardingRequest = OnboardingRequest::where('identifier', $identifier)->first();
+
+        if (! $onboardingRequest) {
+            throw new BusinessRuleException('Invalid onboarding identifier.', 'INVALID_IDENTIFIER', 404);
+        }
+
+        if ($onboardingRequest->isConverted()) {
+            throw new BusinessRuleException('This onboarding request has already been completed.', 'ALREADY_CONVERTED', 409);
+        }
+
+        if ($onboardingRequest->isExpired()) {
+            throw new BusinessRuleException('Onboarding session has expired. Please restart registration.', 'SESSION_EXPIRED', 422);
+        }
+
+        if ($onboardingRequest->isPhoneVerified()) {
+            return [
+                'identifier' => $onboardingRequest->identifier,
+                'status' => 'PENDING_PROFILE',
+                'message' => 'Phone already verified. Please complete your profile.',
+            ];
+        }
+
+        // Enforce rate limiting: 5 OTP requests per hour
+        $throttleKey = "onboarding_otp:{$onboardingRequest->phone}";
+        if (RateLimiter::tooManyAttempts($throttleKey, 5)) {
+            $seconds = RateLimiter::availableIn($throttleKey);
+            throw new BusinessRuleException(
+                "Too many OTP requests. Please wait {$seconds} seconds before trying again.",
+                'OTP_RATE_LIMITED',
+                429
+            );
+        }
+        RateLimiter::hit($throttleKey, 3600);
+
+        // Invalidate prior unused OTPs for this phone
+        OtpCode::where('identifier', $onboardingRequest->phone)
+            ->where('purpose', OtpPurpose::Login)
+            ->whereNull('used_at')
+            ->update(['used_at' => now()]);
+
+        // Generate and dispatch OTP
+        $code = (string) random_int(100000, 999999);
+        if (! app()->isProduction() && config('app.mock_otp', false)) {
+            $code = '123456';
+        }
+
+        OtpCode::create([
+            'identifier' => $onboardingRequest->phone,
+            'code_hash' => Hash::make($code),
+            'purpose' => OtpPurpose::Login,
+            'attempts' => 0,
+            'expires_at' => now()->addMinutes(10),
+        ]);
+
+        try {
+            $this->notifications->sendSmsNow(
+                $onboardingRequest->phone,
+                "Your LiveBids onboarding verification code is {$code}. Valid for 10 minutes. Do not share this code.",
+                'onboarding_otp'
+            );
+        } catch (\Throwable $e) {
+            if (app()->isProduction()) {
+                report($e);
+            }
+        }
+
+        return [
+            'identifier' => $onboardingRequest->identifier,
+            'status' => 'PENDING_OTP',
+            'expires_in_seconds' => 600,
+            'message' => 'Verification code sent to your phone.',
         ];
     }
 
@@ -254,7 +336,7 @@ class OnboardingService
             // Assign default buyer role
             $user->assignRole('buyer');
 
-            // Save physical pickup address
+            // Save physical address
             UserAddress::create([
                 'user_id' => $user->id,
                 'country_id' => (int) $data['country_id'],
@@ -309,6 +391,19 @@ class OnboardingService
 
             // Issue Sanctum token
             $token = $user->createToken('mobile-app', ['*'])->plainTextToken;
+
+            $hasEmail = ! empty($data['email']);
+
+            if ($hasEmail) {
+                $this->emailVerificationService->sendVerificationCode($user);
+
+                return [
+                    'user' => $user->load(['primaryAddress.country', 'primaryAddress.state', 'primaryAddress.lga']),
+                    'token' => $token,
+                    'status' => 'PENDING_EMAIL_VERIFICATION',
+                    'message' => 'Profile completed. Please verify your email address.',
+                ];
+            }
 
             return [
                 'user' => $user->load(['primaryAddress.country', 'primaryAddress.state', 'primaryAddress.lga']),

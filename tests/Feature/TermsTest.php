@@ -27,13 +27,13 @@ class TermsTest extends TestCase
         // Register temporary test route guarded by 'terms.accepted' (global)
         Route::middleware(['api', 'auth:sanctum', 'terms.accepted'])
             ->get('/api/v1/test-terms-guarded', function () {
-                return response()->json(['status' => 'success', 'message' => 'Passed terms check.']);
+                return response()->json(['status' => true, 'message' => 'Passed terms check.']);
             });
 
         // Register temporary contextual route guarded by 'terms.accepted:bidding_escrow'
         Route::middleware(['api', 'auth:sanctum', 'terms.accepted:bidding_escrow'])
             ->post('/api/v1/test-bidding-guarded', function () {
-                return response()->json(['status' => 'success', 'message' => 'Bid action permitted.']);
+                return response()->json(['status' => true, 'message' => 'Bid action permitted.']);
             });
     }
 
@@ -42,7 +42,7 @@ class TermsTest extends TestCase
         $response = $this->getJson('/api/v1/terms');
 
         $response->assertOk()
-            ->assertJsonPath('status', 'success')
+            ->assertJsonPath('status', true)
             ->assertJsonCount(5, 'data');
     }
 
@@ -51,7 +51,7 @@ class TermsTest extends TestCase
         $response = $this->getJson('/api/v1/terms/general');
 
         $response->assertOk()
-            ->assertJsonPath('status', 'success')
+            ->assertJsonPath('status', true)
             ->assertJsonPath('data.type', 'general')
             ->assertJsonPath('data.version', '1.0');
     }
@@ -61,7 +61,7 @@ class TermsTest extends TestCase
         $response = $this->getJson('/api/v1/terms/non_existent_type');
 
         $response->assertNotFound()
-            ->assertJsonPath('status', 'error')
+            ->assertJsonPath('status', false)
             ->assertJsonPath('error_code', 'TERMS_NOT_FOUND');
     }
 
@@ -81,7 +81,7 @@ class TermsTest extends TestCase
         $response = $this->getJson('/api/v1/terms/general/versions');
 
         $response->assertOk()
-            ->assertJsonPath('status', 'success')
+            ->assertJsonPath('status', true)
             ->assertJsonCount(2, 'data');
     }
 
@@ -93,7 +93,7 @@ class TermsTest extends TestCase
             ->getJson('/api/v1/terms/pending');
 
         $response->assertOk()
-            ->assertJsonPath('status', 'success')
+            ->assertJsonPath('status', true)
             ->assertJsonCount(5, 'data'); // all 5 seeded terms are required and unaccepted
     }
 
@@ -112,7 +112,7 @@ class TermsTest extends TestCase
             ]);
 
         $response->assertOk()
-            ->assertJsonPath('status', 'success')
+            ->assertJsonPath('status', true)
             ->assertJsonPath('data.user_id', $user->id)
             ->assertJsonPath('data.terms_id', $terms->id);
 
@@ -163,7 +163,7 @@ class TermsTest extends TestCase
             ->getJson('/api/v1/terms/my-acceptances');
 
         $response->assertOk()
-            ->assertJsonPath('status', 'success')
+            ->assertJsonPath('status', true)
             ->assertJsonCount(1, 'data')
             ->assertJsonPath('data.0.terms_id', $terms->id);
     }
@@ -198,7 +198,7 @@ class TermsTest extends TestCase
             ->getJson('/api/v1/test-terms-guarded');
 
         $response->assertOk()
-            ->assertJsonPath('status', 'success')
+            ->assertJsonPath('status', true)
             ->assertJsonPath('message', 'Passed terms check.');
     }
 
@@ -231,7 +231,7 @@ class TermsTest extends TestCase
             ->postJson('/api/v1/test-bidding-guarded');
 
         $response->assertOk()
-            ->assertJsonPath('status', 'success')
+            ->assertJsonPath('status', true)
             ->assertJsonPath('message', 'Bid action permitted.');
     }
 }

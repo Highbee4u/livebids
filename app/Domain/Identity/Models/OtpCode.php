@@ -13,7 +13,7 @@ class OtpCode extends Model
     use HasFactory;
 
     protected $fillable = [
-        'phone',
+        'identifier',
         'code_hash',
         'purpose',
         'attempts',

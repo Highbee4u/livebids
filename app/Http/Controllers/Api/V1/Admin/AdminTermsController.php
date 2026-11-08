@@ -42,16 +42,11 @@ class AdminTermsController extends Controller
 
         $terms = $query->orderByDesc('id')->paginate((int) $request->query('per_page', 15));
 
-        return response()->json([
-            'status' => 'success',
-            'data' => TermsResource::collection($terms),
-            'pagination' => [
-                'current_page' => $terms->currentPage(),
-                'last_page' => $terms->lastPage(),
-                'per_page' => $terms->perPage(),
-                'total' => $terms->total(),
-            ],
-        ]);
+        return $this->paginatedResponse(
+            TermsResource::collection($terms),
+            $terms,
+            'Terms list retrieved successfully.'
+        );
     }
 
     /**
@@ -66,11 +61,11 @@ class AdminTermsController extends Controller
             adminId: (int) $admin->id
         );
 
-        return response()->json([
-            'status' => 'success',
-            'message' => 'Terms document created successfully.',
-            'data' => new TermsResource($terms),
-        ], 201);
+        return $this->successResponse(
+            new TermsResource($terms),
+            'Terms document created successfully.',
+            201
+        );
     }
 
     /**
@@ -80,10 +75,10 @@ class AdminTermsController extends Controller
     {
         $metrics = $this->termsService->getAcceptanceMetrics($id);
 
-        return response()->json([
-            'status' => 'success',
-            'data' => new AdminTermsDetailResource($metrics),
-        ]);
+        return $this->successResponse(
+            new AdminTermsDetailResource($metrics),
+            'Terms details retrieved successfully.'
+        );
     }
 
     /**
@@ -93,11 +88,10 @@ class AdminTermsController extends Controller
     {
         $terms = $this->termsService->updateTerms($id, $request->validated());
 
-        return response()->json([
-            'status' => 'success',
-            'message' => 'Terms document updated successfully.',
-            'data' => new TermsResource($terms),
-        ]);
+        return $this->successResponse(
+            new TermsResource($terms),
+            'Terms document updated successfully.'
+        );
     }
 
     /**
@@ -107,11 +101,10 @@ class AdminTermsController extends Controller
     {
         $terms = $this->termsService->publishVersion($id);
 
-        return response()->json([
-            'status' => 'success',
-            'message' => 'Terms version published and activated successfully.',
-            'data' => new TermsResource($terms),
-        ]);
+        return $this->successResponse(
+            new TermsResource($terms),
+            'Terms version published and activated successfully.'
+        );
     }
 
     /**
@@ -125,11 +118,10 @@ class AdminTermsController extends Controller
 
         $terms = $this->termsService->toggleEnforcement($id, (bool) $request->input('is_required'));
 
-        return response()->json([
-            'status' => 'success',
-            'message' => 'Terms enforcement status updated successfully.',
-            'data' => new TermsResource($terms),
-        ]);
+        return $this->successResponse(
+            new TermsResource($terms),
+            'Terms enforcement status updated successfully.'
+        );
     }
 
     /**
@@ -140,15 +132,10 @@ class AdminTermsController extends Controller
         $perPage = (int) $request->query('per_page', 20);
         $logs = $this->termsService->getAuditLog($id, $perPage);
 
-        return response()->json([
-            'status' => 'success',
-            'data' => UserTermsAcceptanceResource::collection($logs),
-            'pagination' => [
-                'current_page' => $logs->currentPage(),
-                'last_page' => $logs->lastPage(),
-                'per_page' => $logs->perPage(),
-                'total' => $logs->total(),
-            ],
-        ]);
+        return $this->paginatedResponse(
+            UserTermsAcceptanceResource::collection($logs),
+            $logs,
+            'Terms audit log retrieved successfully.'
+        );
     }
 }

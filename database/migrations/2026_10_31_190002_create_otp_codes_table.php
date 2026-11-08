@@ -10,7 +10,7 @@ return new class extends Migration
     {
         Schema::create('otp_codes', function (Blueprint $table) {
             $table->id();
-            $table->string('phone', 30)->index();
+            $table->string('identifier', 100)->index();
             $table->string('code_hash');
             $table->string('purpose', 30)->default('login');
             $table->unsignedTinyInteger('attempts')->default(0);
