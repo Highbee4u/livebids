@@ -25,10 +25,10 @@ class LocationController extends Controller
     {
         $countries = $this->locationService->getCountries();
 
-        return response()->json([
-            'status' => 'success',
-            'data' => CountryResource::collection($countries),
-        ]);
+        return $this->successResponse(
+            CountryResource::collection($countries),
+            'Countries retrieved successfully.'
+        );
     }
 
     /**
@@ -39,10 +39,10 @@ class LocationController extends Controller
         $countryId = $request->has('country_id') ? (int) $request->query('country_id') : null;
         $states = $this->locationService->getStates($countryId);
 
-        return response()->json([
-            'status' => 'success',
-            'data' => StateResource::collection($states),
-        ]);
+        return $this->successResponse(
+            StateResource::collection($states),
+            'States retrieved successfully.'
+        );
     }
 
     /**
@@ -52,9 +52,9 @@ class LocationController extends Controller
     {
         $lgas = $this->locationService->getCitiesOrLgas($stateId);
 
-        return response()->json([
-            'status' => 'success',
-            'data' => LgaResource::collection($lgas),
-        ]);
+        return $this->successResponse(
+            LgaResource::collection($lgas),
+            'Cities and LGAs retrieved successfully.'
+        );
     }
 }

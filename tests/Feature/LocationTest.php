@@ -25,7 +25,7 @@ class LocationTest extends TestCase
         $response = $this->getJson('/api/v1/locations/countries');
 
         $response->assertOk()
-            ->assertJsonPath('status', 'success')
+            ->assertJsonPath('status', true)
             ->assertJsonFragment([
                 'name' => 'Nigeria',
                 'iso2' => 'NG',
@@ -40,7 +40,7 @@ class LocationTest extends TestCase
         $response = $this->getJson("/api/v1/locations/states?country_id={$nigeria->id}");
 
         $response->assertOk()
-            ->assertJsonPath('status', 'success')
+            ->assertJsonPath('status', true)
             ->assertJsonFragment(['name' => 'Lagos'])
             ->assertJsonFragment(['name' => 'Abuja Federal Capital Territory']);
     }
@@ -52,7 +52,7 @@ class LocationTest extends TestCase
         $response = $this->getJson("/api/v1/locations/states/{$lagos->id}/cities");
 
         $response->assertOk()
-            ->assertJsonPath('status', 'success')
+            ->assertJsonPath('status', true)
             ->assertJsonFragment(['name' => 'Ikeja'])
             ->assertJsonFragment(['name' => 'Lagos Island']);
     }

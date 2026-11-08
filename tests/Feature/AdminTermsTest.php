@@ -48,7 +48,7 @@ class AdminTermsTest extends TestCase
             ->getJson('/api/v1/admin/terms');
 
         $response->assertOk()
-            ->assertJsonPath('status', 'success')
+            ->assertJsonPath('status', true)
             ->assertJsonCount(5, 'data');
     }
 
@@ -68,7 +68,7 @@ class AdminTermsTest extends TestCase
             ->postJson('/api/v1/admin/terms', $payload);
 
         $response->assertStatus(201)
-            ->assertJsonPath('status', 'success')
+            ->assertJsonPath('status', true)
             ->assertJsonPath('data.type', 'seller_agreement')
             ->assertJsonPath('data.version', '2.0');
 
@@ -106,7 +106,7 @@ class AdminTermsTest extends TestCase
             ]);
 
         $response->assertOk()
-            ->assertJsonPath('status', 'success')
+            ->assertJsonPath('status', true)
             ->assertJsonPath('data.title', 'Updated LiveBids General Terms')
             ->assertJsonPath('data.summary_of_changes', 'Clarified clause 4');
     }
@@ -131,7 +131,7 @@ class AdminTermsTest extends TestCase
             ->postJson("/api/v1/admin/terms/{$newGeneral->id}/publish");
 
         $response->assertOk()
-            ->assertJsonPath('status', 'success')
+            ->assertJsonPath('status', true)
             ->assertJsonPath('data.is_active', true);
 
         // Assert v1.0 is now deactivated
@@ -175,7 +175,7 @@ class AdminTermsTest extends TestCase
             ->getJson("/api/v1/admin/terms/{$terms->id}");
 
         $metricsResponse->assertOk()
-            ->assertJsonPath('status', 'success')
+            ->assertJsonPath('status', true)
             ->assertJsonPath('data.metrics.total_accepted', 1)
             ->assertJsonPath('data.metrics.total_users', 2); // admin + regularUser
 
@@ -184,7 +184,7 @@ class AdminTermsTest extends TestCase
             ->getJson("/api/v1/admin/terms/{$terms->id}/audit-log");
 
         $auditResponse->assertOk()
-            ->assertJsonPath('status', 'success')
+            ->assertJsonPath('status', true)
             ->assertJsonCount(1, 'data')
             ->assertJsonPath('data.0.user_id', $this->regularUser->id)
             ->assertJsonPath('data.0.ip_address', '10.0.0.1');

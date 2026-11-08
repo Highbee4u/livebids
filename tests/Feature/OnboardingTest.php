@@ -43,7 +43,7 @@ class OnboardingTest extends TestCase
         ]);
 
         $response->assertOk()
-            ->assertJsonPath('status', 'success')
+            ->assertJsonPath('status', true)
             ->assertJsonPath('data.status', 'PENDING_OTP');
 
         $identifier = $response->json('data.identifier');
@@ -92,7 +92,7 @@ class OnboardingTest extends TestCase
 
         // 2. Create OTP code
         OtpCode::create([
-            'phone' => $phone,
+            'identifier' => $phone,
             'code_hash' => Hash::make('654321'),
             'purpose' => OtpPurpose::Login,
             'attempts' => 0,
@@ -114,7 +114,7 @@ class OnboardingTest extends TestCase
         ]);
 
         $correctResponse->assertOk()
-            ->assertJsonPath('status', 'success')
+            ->assertJsonPath('status', true)
             ->assertJsonPath('data.status', 'PENDING_PROFILE');
 
         // Verify status in staging table
@@ -224,11 +224,16 @@ class OnboardingTest extends TestCase
         ]);
 
         $response->assertStatus(201)
-            ->assertJsonPath('status', 'success')
-            ->assertJsonPath('data.status', 'ONBOARDING_COMPLETE')
+            ->assertJsonPath('status', true)
+            ->assertJsonPath('data.status', 'PENDING_EMAIL_VERIFICATION')
             ->assertJsonPath('data.user.first_name', 'Chidi')
             ->assertJsonPath('data.user.last_name', 'Okonkwo')
             ->assertJsonPath('data.user.is_onboarded', true);
+
+        $this->assertDatabaseHas('otp_codes', [
+            'identifier' => 'chidi@example.com',
+            'purpose' => 'email_verification',
+        ]);
 
         $token = $response->json('data.token');
         $this->assertNotEmpty($token);
@@ -292,5 +297,83 @@ class OnboardingTest extends TestCase
             ->getJson('/api/v1/orders');
 
         $successResponse->assertOk();
+    }
+
+    public function test_step_3_complete_profile_without_email_returns_onboarding_complete(): void
+    {
+        $phone = '+2348077665544';
+
+        $staging = OnboardingRequest::create([
+            'identifier' => '990e8400-e29b-41d4-a716-446655440099',
+            'phone' => $phone,
+            'status' => OnboardingStatus::PhoneVerified,
+            'phone_verified_at' => now(),
+            'expires_at' => now()->addHours(1),
+        ]);
+
+        $nigeria = Country::where('iso2', 'NG')->first();
+        $lagos = State::where('name', 'Lagos')->first();
+        $ikeja = Lga::where('name', 'Ikeja')->where('state_id', $lagos->id)->first();
+
+        $response = $this->postJson('/api/v1/auth/profile/setup', [
+            'identifier' => $staging->identifier,
+            'first_name' => 'Amaka',
+            'last_name' => 'Eze',
+            'date_of_birth' => '1995-10-20',
+            'email' => null,
+            'country_id' => $nigeria->id,
+            'state_id' => $lagos->id,
+            'lga_id' => $ikeja->id,
+            'city' => 'Ikeja',
+            'street_address' => '15 Allen Avenue',
+            'postal_code' => '100001',
+        ]);
+
+        $response->assertStatus(201)
+            ->assertJsonPath('status', true)
+            ->assertJsonPath('data.status', 'ONBOARDING_COMPLETE')
+            ->assertJsonPath('data.user.first_name', 'Amaka')
+            ->assertJsonPath('data.user.email', null);
+    }
+
+    public function test_can_resend_onboarding_phone_otp(): void
+    {
+        $phone = '+2348033221100';
+
+        $staging = OnboardingRequest::create([
+            'identifier' => '110e8400-e29b-41d4-a716-446655440011',
+            'phone' => $phone,
+            'status' => OnboardingStatus::PendingOtp,
+            'expires_at' => now()->addMinutes(10),
+        ]);
+
+        // Prior OTP
+        OtpCode::create([
+            'identifier' => $phone,
+            'code_hash' => Hash::make('111111'),
+            'purpose' => OtpPurpose::Login,
+            'attempts' => 0,
+            'expires_at' => now()->addMinutes(10),
+        ]);
+
+        $response = $this->postJson('/api/v1/auth/register/resend-otp', [
+            'identifier' => $staging->identifier,
+        ]);
+
+        $response->assertOk()
+            ->assertJsonPath('status', true)
+            ->assertJsonPath('data.status', 'PENDING_OTP')
+            ->assertJsonPath('data.identifier', $staging->identifier);
+
+        // Previous OTP is marked used
+        $this->assertNotNull(OtpCode::where('identifier', $phone)->first()->used_at);
+
+        // Alias endpoint also works
+        $aliasResponse = $this->postJson('/api/v1/auth/onboarding/otp/resend', [
+            'identifier' => $staging->identifier,
+        ]);
+
+        $aliasResponse->assertOk()
+            ->assertJsonPath('status', true);
     }
 }

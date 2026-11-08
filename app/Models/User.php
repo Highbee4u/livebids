@@ -16,6 +16,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Str;
 use Laravel\Sanctum\HasApiTokens;
 use Spatie\Permission\Traits\HasRoles;
 
@@ -24,6 +25,7 @@ class User extends Authenticatable
     use HasApiTokens, HasFactory, HasRoles, Notifiable, SoftDeletes;
 
     protected $fillable = [
+        'identifier',
         'phone',
         'name',
         'first_name',
@@ -34,6 +36,7 @@ class User extends Authenticatable
         'password',
         'avatar_url',
         'phone_verified_at',
+        'email_verified_at',
         'profile_completed_at',
         'kyc_status',
         'rating',
@@ -115,6 +118,11 @@ class User extends Authenticatable
         return ! is_null($this->phone_verified_at);
     }
 
+    public function isEmailVerified(): bool
+    {
+        return ! is_null($this->email_verified_at);
+    }
+
     public function isProfileCompleted(): bool
     {
         return ! is_null($this->profile_completed_at);
@@ -133,5 +141,19 @@ class User extends Authenticatable
     public function isRestricted(): bool
     {
         return $this->is_suspended || $this->is_banned;
+    }
+
+    protected static function booted(): void
+    {
+        static::creating(function (User $user): void {
+            if (empty($user->identifier)) {
+                $user->identifier = (string) Str::uuid();
+            }
+        });
+    }
+
+    public function getRouteKeyName(): string
+    {
+        return 'identifier';
     }
 }

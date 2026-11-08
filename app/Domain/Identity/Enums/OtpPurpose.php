@@ -9,4 +9,5 @@ enum OtpPurpose: string
     case Login = 'login';
     case Withdrawal = 'withdrawal';
     case PinReset = 'pin_reset';
+    case EmailVerification = 'email_verification';
 }

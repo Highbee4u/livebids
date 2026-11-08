@@ -16,7 +16,8 @@ class UserResource extends JsonResource
     public function toArray(Request $request): array
     {
         return [
-            'id' => $this->id,
+            'id' => $this->identifier,
+            'identifier' => $this->identifier,
             'phone' => $this->phone,
             'name' => $this->name,
             'first_name' => $this->first_name,
@@ -26,6 +27,7 @@ class UserResource extends JsonResource
             'email' => $this->email,
             'avatar_url' => $this->avatar_url,
             'is_phone_verified' => $this->isPhoneVerified(),
+            'is_email_verified' => $this->isEmailVerified(),
             'is_profile_completed' => $this->isProfileCompleted(),
             'is_onboarded' => $this->isOnboarded(),
             'kyc_status' => $this->kyc_status?->value ?? 'pending',

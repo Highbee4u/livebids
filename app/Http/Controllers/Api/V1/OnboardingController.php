@@ -8,6 +8,7 @@ use App\Domain\Identity\Services\OnboardingService;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\CompleteProfileRequest;
 use App\Http\Requests\RegisterRequest;
+use App\Http\Requests\ResendOnboardingOtpRequest;
 use App\Http\Requests\VerifyOnboardingOtpRequest;
 use App\Http\Resources\UserResource;
 use Illuminate\Http\JsonResponse;
@@ -32,10 +33,10 @@ class OnboardingController extends Controller
             userAgent: $request->userAgent()
         );
 
-        return response()->json([
-            'status' => 'success',
-            'data' => $result,
-        ], 200);
+        return $this->successResponse(
+            $result,
+            $result['message'] ?? 'Verification code sent to your phone.'
+        );
     }
 
     /**
@@ -48,10 +49,25 @@ class OnboardingController extends Controller
             code: $request->input('code')
         );
 
-        return response()->json([
-            'status' => 'success',
-            'data' => $result,
-        ], 200);
+        return $this->successResponse(
+            $result,
+            $result['message'] ?? 'Phone number verified successfully.'
+        );
+    }
+
+    /**
+     * Resend phone verification OTP code for active onboarding request.
+     */
+    public function resendOtp(ResendOnboardingOtpRequest $request): JsonResponse
+    {
+        $result = $this->onboardingService->resendOnboardingOtp(
+            identifier: $request->input('identifier')
+        );
+
+        return $this->successResponse(
+            $result,
+            $result['message'] ?? 'Verification code sent to your phone.'
+        );
     }
 
     /**
@@ -64,14 +80,14 @@ class OnboardingController extends Controller
             data: $request->validated()
         );
 
-        return response()->json([
-            'status' => 'success',
-            'message' => $result['message'],
-            'data' => [
+        return $this->successResponse(
+            [
                 'user' => new UserResource($result['user']),
                 'token' => $result['token'],
                 'status' => $result['status'],
             ],
-        ], 201);
+            $result['message'],
+            201
+        );
     }
 }
