@@ -22,6 +22,7 @@ class UserFactory extends Factory
         $lastName = fake()->lastName();
 
         return [
+            'identifier' => fake()->unique()->uuid(),
             'first_name' => $firstName,
             'last_name' => $lastName,
             'name' => "{$firstName} {$lastName}",

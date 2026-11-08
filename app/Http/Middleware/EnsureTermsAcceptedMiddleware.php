@@ -39,7 +39,9 @@ class EnsureTermsAcceptedMiddleware
 
             if ($requiredTerm && $requiredTerm->is_required && ! $this->termsService->hasAcceptedTerms((int) $user->id, $requiredTerm->id)) {
                 return response()->json([
+                    'status' => false,
                     'message' => "You must review and accept the {$requiredTerm->title} before proceeding.",
+                    'error' => 'TERMS_ACCEPTANCE_REQUIRED',
                     'error_code' => 'TERMS_ACCEPTANCE_REQUIRED',
                     'required_term' => new TermsResource($requiredTerm),
                 ], 403);
@@ -53,7 +55,9 @@ class EnsureTermsAcceptedMiddleware
 
         if ($pending->isNotEmpty()) {
             return response()->json([
+                'status' => false,
                 'message' => 'You must accept the updated terms and conditions before proceeding.',
+                'error' => 'TERMS_ACCEPTANCE_REQUIRED',
                 'error_code' => 'TERMS_ACCEPTANCE_REQUIRED',
                 'pending_terms' => TermsResource::collection($pending),
             ], 403);

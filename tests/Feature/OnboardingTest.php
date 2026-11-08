@@ -43,7 +43,7 @@ class OnboardingTest extends TestCase
         ]);
 
         $response->assertOk()
-            ->assertJsonPath('status', 'success')
+            ->assertJsonPath('status', true)
             ->assertJsonPath('data.status', 'PENDING_OTP');
 
         $identifier = $response->json('data.identifier');
@@ -114,7 +114,7 @@ class OnboardingTest extends TestCase
         ]);
 
         $correctResponse->assertOk()
-            ->assertJsonPath('status', 'success')
+            ->assertJsonPath('status', true)
             ->assertJsonPath('data.status', 'PENDING_PROFILE');
 
         // Verify status in staging table
@@ -224,7 +224,7 @@ class OnboardingTest extends TestCase
         ]);
 
         $response->assertStatus(201)
-            ->assertJsonPath('status', 'success')
+            ->assertJsonPath('status', true)
             ->assertJsonPath('data.status', 'ONBOARDING_COMPLETE')
             ->assertJsonPath('data.user.first_name', 'Chidi')
             ->assertJsonPath('data.user.last_name', 'Okonkwo')

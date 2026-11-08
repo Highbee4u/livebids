@@ -13,6 +13,7 @@ return new class extends Migration
     {
         Schema::create('users', function (Blueprint $table) {
             $table->id();
+            $table->uuid('identifier')->unique()->index();
             $table->string('phone', 30)->unique()->index();
             $table->string('name')->default('LiveBids User');
             $table->string('legal_name')->nullable();

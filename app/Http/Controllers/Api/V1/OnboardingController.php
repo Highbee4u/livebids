@@ -32,10 +32,10 @@ class OnboardingController extends Controller
             userAgent: $request->userAgent()
         );
 
-        return response()->json([
-            'status' => 'success',
-            'data' => $result,
-        ], 200);
+        return $this->successResponse(
+            $result,
+            $result['message'] ?? 'Verification code sent to your phone.'
+        );
     }
 
     /**
@@ -48,10 +48,10 @@ class OnboardingController extends Controller
             code: $request->input('code')
         );
 
-        return response()->json([
-            'status' => 'success',
-            'data' => $result,
-        ], 200);
+        return $this->successResponse(
+            $result,
+            $result['message'] ?? 'Phone number verified successfully.'
+        );
     }
 
     /**
@@ -64,14 +64,14 @@ class OnboardingController extends Controller
             data: $request->validated()
         );
 
-        return response()->json([
-            'status' => 'success',
-            'message' => $result['message'],
-            'data' => [
+        return $this->successResponse(
+            [
                 'user' => new UserResource($result['user']),
                 'token' => $result['token'],
                 'status' => $result['status'],
             ],
-        ], 201);
+            $result['message'],
+            201
+        );
     }
 }

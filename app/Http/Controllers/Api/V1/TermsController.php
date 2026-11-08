@@ -25,10 +25,10 @@ class TermsController extends Controller
     {
         $terms = $this->termsService->getAllActiveTerms();
 
-        return response()->json([
-            'status' => 'success',
-            'data' => TermsResource::collection($terms),
-        ]);
+        return $this->successResponse(
+            TermsResource::collection($terms),
+            'Active terms and conditions retrieved successfully.'
+        );
     }
 
     /**
@@ -39,17 +39,17 @@ class TermsController extends Controller
         $terms = $this->termsService->getActiveTermsByType($type);
 
         if (! $terms) {
-            return response()->json([
-                'status' => 'error',
-                'message' => "No active terms found for type: {$type}",
-                'error_code' => 'TERMS_NOT_FOUND',
-            ], 404);
+            return $this->errorResponse(
+                "No active terms found for type: {$type}",
+                404,
+                'TERMS_NOT_FOUND'
+            );
         }
 
-        return response()->json([
-            'status' => 'success',
-            'data' => new TermsResource($terms),
-        ]);
+        return $this->successResponse(
+            new TermsResource($terms),
+            'Terms and conditions retrieved successfully.'
+        );
     }
 
     /**
@@ -59,10 +59,10 @@ class TermsController extends Controller
     {
         $history = $this->termsService->getVersionHistory($type);
 
-        return response()->json([
-            'status' => 'success',
-            'data' => TermsResource::collection($history),
-        ]);
+        return $this->successResponse(
+            TermsResource::collection($history),
+            'Terms version history retrieved successfully.'
+        );
     }
 
     /**
@@ -75,10 +75,10 @@ class TermsController extends Controller
 
         $pending = $this->termsService->getPendingTermsForUser((int) $user->id, $type);
 
-        return response()->json([
-            'status' => 'success',
-            'data' => TermsResource::collection($pending),
-        ]);
+        return $this->successResponse(
+            TermsResource::collection($pending),
+            'Pending terms and conditions retrieved successfully.'
+        );
     }
 
     /**
@@ -89,10 +89,10 @@ class TermsController extends Controller
         $user = $request->user();
         $acceptances = $this->termsService->getUserAcceptances((int) $user->id);
 
-        return response()->json([
-            'status' => 'success',
-            'data' => UserTermsAcceptanceResource::collection($acceptances),
-        ]);
+        return $this->successResponse(
+            UserTermsAcceptanceResource::collection($acceptances),
+            'User terms acceptances retrieved successfully.'
+        );
     }
 
     /**
@@ -109,10 +109,9 @@ class TermsController extends Controller
             userAgent: $request->userAgent()
         );
 
-        return response()->json([
-            'status' => 'success',
-            'message' => 'Terms and conditions accepted successfully.',
-            'data' => new UserTermsAcceptanceResource($acceptance->load('terms')),
-        ]);
+        return $this->successResponse(
+            new UserTermsAcceptanceResource($acceptance->load('terms')),
+            'Terms and conditions accepted successfully.'
+        );
     }
 }
