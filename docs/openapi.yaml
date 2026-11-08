@@ -12,6 +12,10 @@ servers:
   - url: https://api.livebids.ng/api/v1
     description: Production API Server
 
+security:
+  - BearerAuth: []
+  - {}
+
 tags:
   - name: Onboarding
     description: Phone verification, staging intake, address, and profile completion
@@ -232,7 +236,7 @@ paths:
           content:
             application/json:
               schema:
-                : '#/components/schemas/StandardSuccessResponse'
+                $ref: '#/components/schemas/StandardSuccessResponse'
               example:
                 status: true
                 message: "Verification code sent to your phone."
@@ -245,7 +249,7 @@ paths:
           content:
             application/json:
               schema:
-                : '#/components/schemas/StandardErrorResponse'
+                $ref: '#/components/schemas/StandardErrorResponse'
               example:
                 status: false
                 message: "Invalid onboarding identifier."
@@ -256,7 +260,7 @@ paths:
           content:
             application/json:
               schema:
-                : '#/components/schemas/StandardErrorResponse'
+                $ref: '#/components/schemas/StandardErrorResponse'
               example:
                 status: false
                 message: "Too many OTP requests. Please wait 3500 seconds before trying again."
@@ -286,7 +290,7 @@ paths:
           content:
             application/json:
               schema:
-                : '#/components/schemas/StandardSuccessResponse'
+                $ref: '#/components/schemas/StandardSuccessResponse'
               example:
                 status: true
                 message: "Verification code sent to your phone."
@@ -431,7 +435,7 @@ paths:
           content:
             application/json:
               schema:
-                : '#/components/schemas/StandardSuccessResponse'
+                $ref: '#/components/schemas/StandardSuccessResponse'
               example:
                 status: true
                 message: "Email address verified successfully."
@@ -449,7 +453,7 @@ paths:
           content:
             application/json:
               schema:
-                : '#/components/schemas/StandardErrorResponse'
+                $ref: '#/components/schemas/StandardErrorResponse'
               example:
                 status: false
                 message: "Invalid verification code. 4 attempts remaining."
@@ -489,7 +493,7 @@ paths:
           content:
             application/json:
               schema:
-                : '#/components/schemas/StandardSuccessResponse'
+                $ref: '#/components/schemas/StandardSuccessResponse'
               example:
                 status: true
                 message: "Verification email resent successfully."
@@ -502,7 +506,7 @@ paths:
           content:
             application/json:
               schema:
-                : '#/components/schemas/StandardErrorResponse'
+                $ref: '#/components/schemas/StandardErrorResponse'
               example:
                 status: false
                 message: "Your email address has already been verified."
@@ -513,7 +517,7 @@ paths:
           content:
             application/json:
               schema:
-                : '#/components/schemas/StandardErrorResponse'
+                $ref: '#/components/schemas/StandardErrorResponse'
               example:
                 status: false
                 message: "Too many verification requests. Please wait 3500 seconds before trying again."
@@ -2960,6 +2964,19 @@ components:
         message:
           type: string
           example: "Action performed successfully."
+
+    StandardSuccessResponse:
+      type: object
+      required: [status, message]
+      properties:
+        status:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: "Operation completed successfully."
+        data:
+          type: object
 
     StandardErrorResponse:
       type: object
