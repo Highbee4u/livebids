@@ -8,6 +8,7 @@ use App\Domain\Identity\Services\OnboardingService;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\CompleteProfileRequest;
 use App\Http\Requests\RegisterRequest;
+use App\Http\Requests\ResendOnboardingOtpRequest;
 use App\Http\Requests\VerifyOnboardingOtpRequest;
 use App\Http\Resources\UserResource;
 use Illuminate\Http\JsonResponse;
@@ -51,6 +52,21 @@ class OnboardingController extends Controller
         return $this->successResponse(
             $result,
             $result['message'] ?? 'Phone number verified successfully.'
+        );
+    }
+
+    /**
+     * Resend phone verification OTP code for active onboarding request.
+     */
+    public function resendOtp(ResendOnboardingOtpRequest $request): JsonResponse
+    {
+        $result = $this->onboardingService->resendOnboardingOtp(
+            identifier: $request->input('identifier')
+        );
+
+        return $this->successResponse(
+            $result,
+            $result['message'] ?? 'Verification code sent to your phone.'
         );
     }
 

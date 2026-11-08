@@ -52,7 +52,7 @@ class OtpService
         }
 
         $otpRecord = OtpCode::create([
-            'phone' => $normalizedPhone,
+            'identifier' => $normalizedPhone,
             'code_hash' => Hash::make($code),
             'purpose' => $purpose,
             'attempts' => 0,
@@ -93,7 +93,7 @@ class OtpService
     ): array {
         $normalizedPhone = $this->normalizePhone($phone);
 
-        $otp = OtpCode::where('phone', $normalizedPhone)
+        $otp = OtpCode::where('identifier', $normalizedPhone)
             ->where('purpose', $purpose)
             ->whereNull('used_at')
             ->latest('id')
