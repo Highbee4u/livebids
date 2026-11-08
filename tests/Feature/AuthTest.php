@@ -31,7 +31,7 @@ class AuthTest extends TestCase
             ->assertJsonStructure(['message', 'expires_at']);
 
         $this->assertDatabaseHas('otp_codes', [
-            'phone' => '+2348012345678',
+            'identifier' => '+2348012345678',
             'purpose' => 'login',
         ]);
     }
@@ -42,7 +42,7 @@ class AuthTest extends TestCase
         $code = '654321';
 
         OtpCode::create([
-            'phone' => $phone,
+            'identifier' => $phone,
             'code_hash' => Hash::make($code),
             'purpose' => 'login',
             'expires_at' => now()->addMinutes(10),
@@ -75,7 +75,7 @@ class AuthTest extends TestCase
         $phone = '+2348012345678';
 
         $otp = OtpCode::create([
-            'phone' => $phone,
+            'identifier' => $phone,
             'code_hash' => Hash::make('111111'),
             'purpose' => 'login',
             'expires_at' => now()->addMinutes(10),

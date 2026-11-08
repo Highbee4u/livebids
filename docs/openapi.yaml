@@ -2,15 +2,19 @@ openapi: 3.0.3
 info:
   title: LiveBids API
   description: >-
-    High-concurrency live video auction marketplace API platform built on Laravel 13
+    High-concurrency live video auction marketplace API platform built on Laravel 11
     with double-entry ledger settlement, welfare-verification identity checks,
     real-time WebSockets bidding via Laravel Reverb, and standardized ApiResponder envelopes.
   version: 1.0.0
 servers:
-  - url: http://localhost:8000/api/v1
+  - url: https://localhost:8000/api/v1
     description: Local Development Server
   - url: https://api.livebids.ng/api/v1
     description: Production API Server
+
+security:
+  - BearerAuth: []
+  - {}
 
 tags:
   - name: Onboarding
@@ -207,6 +211,94 @@ paths:
                 error: "OTP_INVALID"
                 error_code: "OTP_INVALID"
 
+  /auth/register/resend-otp:
+    post:
+      summary: Resend onboarding phone verification OTP
+      description: >-
+        Requests a new 6-digit SMS verification code for an active onboarding staging request.
+        Rate limited to 5 requests per hour. Invalidates previously dispatched codes.
+      tags: [Onboarding]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [identifier]
+              properties:
+                identifier:
+                  type: string
+                  format: uuid
+                  example: "738c1b03-d8a9-4adc-90a8-243a830ac938"
+      responses:
+        200:
+          description: Verification code resent successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StandardSuccessResponse'
+              example:
+                status: true
+                message: "Verification code sent to your phone."
+                data:
+                  identifier: "738c1b03-d8a9-4adc-90a8-243a830ac938"
+                  status: "PENDING_OTP"
+                  expires_in_seconds: 600
+        404:
+          description: Onboarding identifier not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StandardErrorResponse'
+              example:
+                status: false
+                message: "Invalid onboarding identifier."
+                error: "INVALID_IDENTIFIER"
+                error_code: "INVALID_IDENTIFIER"
+        429:
+          description: Rate limited
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StandardErrorResponse'
+              example:
+                status: false
+                message: "Too many OTP requests. Please wait 3500 seconds before trying again."
+                error: "OTP_RATE_LIMITED"
+                error_code: "OTP_RATE_LIMITED"
+
+  /auth/onboarding/otp/resend:
+    post:
+      summary: Resend onboarding phone verification OTP (Alias route)
+      description: Alternate endpoint route mapping to OnboardingController@resendOtp for mobile routing.
+      tags: [Onboarding]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [identifier]
+              properties:
+                identifier:
+                  type: string
+                  format: uuid
+                  example: "738c1b03-d8a9-4adc-90a8-243a830ac938"
+      responses:
+        200:
+          description: Verification code resent successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StandardSuccessResponse'
+              example:
+                status: true
+                message: "Verification code sent to your phone."
+                data:
+                  identifier: "738c1b03-d8a9-4adc-90a8-243a830ac938"
+                  status: "PENDING_OTP"
+                  expires_in_seconds: 600
+
   /auth/profile/setup:
     post:
       summary: Complete user profile, address, and atomic account conversion
@@ -301,6 +393,136 @@ paths:
                 error_code: "VALIDATION_ERROR"
                 errors:
                   date_of_birth: ["You must be at least 18 years of age to register on LiveBids."]
+
+  /auth/email/verify:
+    post:
+      summary: Verify email address OTP
+      description: >-
+        Verifies the 6-digit OTP sent to the user's email address during profile setup.
+        Accepts Bearer authentication token or unauthenticated identifier/email parameters.
+        Marks user email as verified (email_verified_at = now()).
+      tags: [Onboarding]
+      security:
+        - BearerAuth: []
+        - {}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [code]
+              properties:
+                code:
+                  type: string
+                  example: "123456"
+                  description: Exactly 6 digits
+                identifier:
+                  type: string
+                  format: uuid
+                  nullable: true
+                  description: User UUID identifier (required if unauthenticated and email is omitted)
+                  example: "8f6b158b-9d41-477d-9dc6-b4d081fdfd8e"
+                email:
+                  type: string
+                  format: email
+                  nullable: true
+                  description: User email address (required if unauthenticated and identifier is omitted)
+                  example: "chidi.okonkwo@example.com"
+      responses:
+        200:
+          description: Email address verified successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StandardSuccessResponse'
+              example:
+                status: true
+                message: "Email address verified successfully."
+                data:
+                  user:
+                    id: "8f6b158b-9d41-477d-9dc6-b4d081fdfd8e"
+                    identifier: "8f6b158b-9d41-477d-9dc6-b4d081fdfd8e"
+                    phone: "+2348012345678"
+                    email: "chidi.okonkwo@example.com"
+                    is_email_verified: true
+                    is_onboarded: true
+                  status: "EMAIL_VERIFIED"
+        422:
+          description: Invalid or expired OTP code
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StandardErrorResponse'
+              example:
+                status: false
+                message: "Invalid verification code. 4 attempts remaining."
+                error: "OTP_INVALID"
+                error_code: "OTP_INVALID"
+
+  /auth/email/resend:
+    post:
+      summary: Resend email verification OTP
+      description: >-
+        Dispatches a fresh 6-digit email verification code via branded email template to the user's email.
+        Rate limited to 5 requests per hour. Rejects if the user's email is already verified.
+      tags: [Onboarding]
+      security:
+        - BearerAuth: []
+        - {}
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                identifier:
+                  type: string
+                  format: uuid
+                  nullable: true
+                  example: "8f6b158b-9d41-477d-9dc6-b4d081fdfd8e"
+                email:
+                  type: string
+                  format: email
+                  nullable: true
+                  example: "chidi.okonkwo@example.com"
+      responses:
+        200:
+          description: Verification email resent successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StandardSuccessResponse'
+              example:
+                status: true
+                message: "Verification email resent successfully."
+                data:
+                  email: "chidi.okonkwo@example.com"
+                  status: "PENDING_EMAIL_VERIFICATION"
+                  expires_in_seconds: 900
+        409:
+          description: Email already verified
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StandardErrorResponse'
+              example:
+                status: false
+                message: "Your email address has already been verified."
+                error: "EMAIL_ALREADY_VERIFIED"
+                error_code: "EMAIL_ALREADY_VERIFIED"
+        429:
+          description: Rate limited
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StandardErrorResponse'
+              example:
+                status: false
+                message: "Too many verification requests. Please wait 3500 seconds before trying again."
+                error: "OTP_RATE_LIMITED"
+                error_code: "OTP_RATE_LIMITED"
 
   # ==========================================
   # LOCATIONS
@@ -2742,6 +2964,19 @@ components:
         message:
           type: string
           example: "Action performed successfully."
+
+    StandardSuccessResponse:
+      type: object
+      required: [status, message]
+      properties:
+        status:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: "Operation completed successfully."
+        data:
+          type: object
 
     StandardErrorResponse:
       type: object

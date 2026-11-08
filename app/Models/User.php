@@ -36,6 +36,7 @@ class User extends Authenticatable
         'password',
         'avatar_url',
         'phone_verified_at',
+        'email_verified_at',
         'profile_completed_at',
         'kyc_status',
         'rating',
@@ -115,6 +116,11 @@ class User extends Authenticatable
     public function isPhoneVerified(): bool
     {
         return ! is_null($this->phone_verified_at);
+    }
+
+    public function isEmailVerified(): bool
+    {
+        return ! is_null($this->email_verified_at);
     }
 
     public function isProfileCompleted(): bool
