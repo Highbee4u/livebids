@@ -13,9 +13,9 @@ class UserAddressResource extends JsonResource
     {
         return [
             'id' => $this->id,
-            'country' => new CountryResource($this->whenLoaded('country')),
-            'state' => new StateResource($this->whenLoaded('state')),
-            'lga' => new LgaResource($this->whenLoaded('lga')),
+            'country' => $this->whenLoaded('country', fn () => $this->country?->name),
+            'state' => $this->whenLoaded('state', fn () => $this->state?->name),
+            'lga' => $this->whenLoaded('lga', fn () => $this->lga?->name),
             'city' => $this->city,
             'street_address' => $this->street_address,
             'postal_code' => $this->postal_code,
