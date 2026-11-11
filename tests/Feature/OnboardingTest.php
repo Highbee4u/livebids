@@ -376,4 +376,59 @@ class OnboardingTest extends TestCase
         $aliasResponse->assertOk()
             ->assertJsonPath('status', true);
     }
+
+    public function test_complete_profile_accepts_json_with_comments_from_api_testing_tools(): void
+    {
+        $phone = '+2348088990011';
+
+        $staging = OnboardingRequest::create([
+            'identifier' => '738c1b03-d8a9-4adc-90a8-243a830ac938',
+            'phone' => $phone,
+            'status' => OnboardingStatus::PhoneVerified,
+            'phone_verified_at' => now(),
+            'expires_at' => now()->addHours(1),
+        ]);
+
+        $nigeria = Country::where('iso2', 'NG')->first();
+        $lagos = State::where('name', 'Lagos')->first();
+        $ikeja = Lga::where('name', 'Ikeja')->where('state_id', $lagos->id)->first();
+
+        // Exact payload with comments as sent by tools like Apidog / curl
+        $rawJsonWithComment = <<<JSON
+        {
+            "city": "Ikeja",
+            "country_id": {$nigeria->id},
+            "date_of_birth": "1998-05-15",
+            // "email": "chidi.okonkwo@example.com",
+            "first_name": "Chidi",
+            "identifier": "{$staging->identifier}",
+            "last_name": "Okonkwo",
+            "lga_id": {$ikeja->id},
+            "postal_code": "100001",
+            "state_id": {$lagos->id},
+            "street_address": "10 Oba Akran Avenue"
+        }
+        JSON;
+
+        $response = $this->call(
+            'POST',
+            '/api/v1/auth/profile/setup',
+            [],
+            [],
+            [],
+            [
+                'CONTENT_TYPE' => 'application/json',
+                'HTTP_ACCEPT' => 'application/json',
+            ],
+            $rawJsonWithComment
+        );
+
+        $response->assertStatus(201)
+            ->assertJsonPath('status', true)
+            ->assertJsonPath('data.status', 'ONBOARDING_COMPLETE')
+            ->assertJsonPath('data.user.first_name', 'Chidi')
+            ->assertJsonPath('data.user.primary_address.country', 'Nigeria')
+            ->assertJsonPath('data.user.primary_address.state', 'Lagos')
+            ->assertJsonPath('data.user.primary_address.lga', 'Ikeja');
+    }
 }
