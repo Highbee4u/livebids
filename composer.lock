@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "af0a10d0bdf51b763196bcab6bdc8d24",
+    "content-hash": "46f5f5fa7249e8c5bc5256ef647924e6",
     "packages": [
         {
             "name": "aws/aws-crt-php",
@@ -8903,11 +8903,17 @@
         },
         {
             "name": "welfare/notifications",
-            "version": "dev-main",
-            "dist": {
-                "type": "path",
-                "url": "../welfare-notifications",
+            "version": "v1.1.4",
+            "source": {
+                "type": "git",
+                "url": "git@github.com:Behalal/welfare-notifications.git",
                 "reference": "3344dfcb9f59da023476bec55d9edf669b9503f9"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/Behalal/welfare-notifications/zipball/3344dfcb9f59da023476bec55d9edf669b9503f9",
+                "reference": "3344dfcb9f59da023476bec55d9edf669b9503f9",
+                "shasum": ""
             },
             "require": {
                 "illuminate/bus": "^10.0|^11.0|^12.0|^13.0",
@@ -8945,17 +8951,25 @@
                 "proprietary"
             ],
             "description": "Shared customer SMS/push notification dispatch for Laravel apps — swappable SMS providers (Termii, Africa's Talking, Twilio) and push (Firebase), driven by config so a provider can be swapped via one env var. No app-domain coupling: takes a plain Recipient value object, not an Eloquent model, so it works the same in any host app regardless of its user schema.",
-            "transport-options": {
-                "relative": true
-            }
+            "support": {
+                "source": "https://github.com/Behalal/welfare-notifications/tree/v1.1.4",
+                "issues": "https://github.com/Behalal/welfare-notifications/issues"
+            },
+            "time": "2026-10-31T18:25:44+00:00"
         },
         {
             "name": "welfare/verification",
-            "version": "dev-main",
-            "dist": {
-                "type": "path",
-                "url": "../welfare-verification",
+            "version": "v1.0.1",
+            "source": {
+                "type": "git",
+                "url": "git@github.com:Behalal/welfare-verification.git",
                 "reference": "fac40ce57443d043e6acddb29d4b986e4d558ebf"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/Behalal/welfare-verification/zipball/fac40ce57443d043e6acddb29d4b986e4d558ebf",
+                "reference": "fac40ce57443d043e6acddb29d4b986e4d558ebf",
+                "shasum": ""
             },
             "require": {
                 "illuminate/contracts": "^10.0|^11.0|^12.0|^13.0",
@@ -8991,9 +9005,11 @@
                 "proprietary"
             ],
             "description": "Shared customer identity, KYC, and corporate CAC verification engine for Laravel apps — swappable verification drivers (IdentityPass, QoreID, Dojah), driven by config so providers can be swapped or combined. Returns standardized DTOs with no host app coupling.",
-            "transport-options": {
-                "relative": true
-            }
+            "support": {
+                "source": "https://github.com/Behalal/welfare-verification/tree/v1.0.1",
+                "issues": "https://github.com/Behalal/welfare-verification/issues"
+            },
+            "time": "2026-10-31T18:25:50+00:00"
         }
     ],
     "packages-dev": [
@@ -11324,10 +11340,7 @@
     ],
     "aliases": [],
     "minimum-stability": "stable",
-    "stability-flags": {
-        "welfare/notifications": 20,
-        "welfare/verification": 20
-    },
+    "stability-flags": {},
     "prefer-stable": true,
     "prefer-lowest": false,
     "platform": {
